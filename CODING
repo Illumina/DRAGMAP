@@ -1,0 +1,4 @@
+Use the following directory structure:
+- src: the source tree
+- redist: external packages distributed with the product
+- doc: engineering documentation

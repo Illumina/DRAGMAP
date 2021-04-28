@@ -1,0 +1,220 @@
+/*
+ * Tests the functionalities of the mapper, based on external mappings.
+ * Requires:
+ * * a reference genome with uncompressed "hash_table.bin" and binary "hash_table.cfg.bin"
+ * * an input file containing the reads to map
+ * * an input file containing the expected mappings
+ */
+#include "gtest/gtest.h"
+
+#include <iostream>
+#include <string>
+#include <cstring>
+#include <cerrno>
+#include <stdexcept>
+#include <memory>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+
+#include <boost/filesystem.hpp>
+
+//#include "api/BamConstants.h"
+
+#include "reference/HashtableConfig.hpp"
+#include "reference/HashtableTraits.hpp"
+#include "reference/Hashtable.hpp"
+#include "align/Mapper.hpp"
+#include "sequences/Read.hpp"
+#include "io/Fastq2DbamTransformer.hpp"
+#include "io/InputDbamRecord.hpp"
+
+class MapperFixture: public ::testing::Test
+{
+public:
+  MapperFixture()
+  {
+  }
+  // The name was changed in gtest 1.8:   static void SetUpTestSuite()
+  static void SetUpTestCase();
+  static void TearDownTestCase()
+  {
+  }
+protected:
+  typedef dragenos::reference::HashtableConfig HashtableConfig;
+  typedef dragenos::reference::HashtableTraits HashtableTraits;
+  typedef dragenos::reference::Hashtable Hashtable;
+  typedef dragenos::align::Mapper Mapper;
+  //static Mapper mapper;
+  static const uint64_t fastqOffset = 64; // base quality offset, +64 or +33
+  static const bool     convertCtoT = false; // whether to convert C->T for methylation
+  static const bool     convertGtoA = false; // whether to convert G->A for methylation
+};
+//MapperFixture::Mapper MapperFixture::mapper;
+
+TEST_F(MapperFixture, DummyTest)
+{
+  //FastqRecord fastq("ACGT", "####");
+  const std::string s("ACGT");
+  const std::string q("####");
+  const std::vector<uint8_t> sequence(s.begin(), s.end());  // Sequence of FASTQ bases
+  const std::vector<uint8_t> qualities(q.begin(), q.end()); // FASTQ quality scores
+  ASSERT_EQ(sequence.size(), qualities.size());
+  std::vector<uint8_t> dbam(sequence.size()); // where to put the transformed sequence
+  dragenos::io::Fastq2DbamTransformer::transformSequence(sequence.data(), sequence.size(), qualities.data(), dbam.data(), fastqOffset, convertCtoT, convertGtoA);
+  //dragenos::align::Read read(dbam.data(), dbam.size());
+}
+
+class Environment : public ::testing::Environment {
+public:
+  typedef dragenos::reference::HashtableConfig HashtableConfig;
+  typedef dragenos::reference::HashtableTraits HashtableTraits;
+  typedef dragenos::reference::Hashtable Hashtable;
+  Environment() : hashtableFd(-1), table(nullptr)
+  {
+  }
+  virtual ~Environment()
+  {
+    if (-1 != hashtableFd) close(hashtableFd);
+    if (nullptr != table) munmap(table, tableSize);
+  }
+  static Hashtable *getHashtable() {return hashtable.get();}
+  static HashtableConfig *getHashtableConfig() {return hashtableConfig.get();}
+  // Override this to define how to set up the environment.
+  void SetUp() override;
+
+  // Override this to define how to tear down the environment.
+  void TearDown() override;
+  static const std::vector<uint8_t> sequence;
+  static const std::vector<uint8_t> qualities;
+private:
+  static std::unique_ptr<HashtableConfig> hashtableConfig;
+  int hashtableFd;
+  size_t tableSize;
+  uint64_t* table;
+  static std::unique_ptr<Hashtable> hashtable;
+};
+
+TEST_F(MapperFixture, transformSequence)
+{
+  ASSERT_EQ(Environment::sequence.size(), Environment::qualities.size());
+  const unsigned length = 125;
+  uint8_t v = 0;
+  std::vector<uint8_t> dbam(length, 0);
+  for (unsigned int i = 0; Environment::sequence.size() + length -1 > i; ++i)
+  {
+    const uint8_t* const sequence = Environment::sequence.data() + i;
+    const uint8_t* const qualities = Environment::qualities.data() + i;
+    const unsigned fastqOffset = 64; // alternately 33
+    dragenos::io::Fastq2DbamTransformer::transformSequence(sequence, length, qualities, dbam.data(), fastqOffset, false, false);
+  }
+  EXPECT_EQ(v, 0);
+}
+
+TEST_F(MapperFixture, checkReadMappings)
+{
+  using namespace BamTools::Constants;
+  uint16_t flag = BAM_ALIGNMENT_PAIRED | BAM_ALIGNMENT_READ_1;
+  const std::string name("fragmentName");
+  const std::string sequence("ACGTAACCGGTT");
+  const std::string qualities(sequence.length(), 'a'); // baseQ = 33
+  const auto recordLength = dragenos::io::InputDbamHeader::calculateRecordLen(flag, sequence.length(), name.length(), 0, 0, false);
+  std::unique_ptr<uint8_t[]> data(new uint8_t[recordLength]);
+  dragenos::io::InputDbamRecord dbamRecord(data.get());
+  dragenos::io::InputDbamHeader *dbamHeader = dbamRecord.getHeader();
+  dbamHeader->setRecordSize(flag, sequence.length(), name.length(), 0, 0, false);
+  dbamHeader->flag = flag;
+  dbamHeader->anchorDoublewords = 0;
+  dbamHeader->reserved          = 0;
+  dbamHeader->setSequenceLen(sequence.length());
+  dbamHeader->readId = 17; // crc32c_hw(0, reinterpret_cast<const uint8_t*>(name.data()), name.length());
+  const unsigned m_fastqOffset = 0;
+  const bool m_convertCtoT = false;
+  const bool m_convertGtoA = false;
+  dragenos::io::Fastq2DbamTransformer::transformSequence(reinterpret_cast<const uint8_t*>(sequence.data()), sequence.size(), reinterpret_cast<const uint8_t*>(qualities.data()), dbamRecord.getSequence(), m_fastqOffset, m_convertCtoT, m_convertGtoA);
+  //dragenos::sequences::Read read(dbamRecord.getRawData(), recordLength);
+  dragenos::align::Mapper mapper(Environment::getHashtable());
+  //mapper.SetConfig(Environment::getHashtableConfig());
+  //mapper.SetPrimaryHT(Environment::getHashtable());
+  //mapper.get_mappings(read);
+}
+
+std::unique_ptr<Environment::HashtableConfig> Environment::hashtableConfig(nullptr);
+std::unique_ptr<Environment::Hashtable> Environment::hashtable(nullptr);
+const std::vector<uint8_t> Environment::sequence(1UL << 26, 'C');
+const std::vector<uint8_t> Environment::qualities(sequence.size(), 68);
+void MapperFixture::SetUpTestCase()
+{
+  //mapper.SetConfig(Environment::getHashtableConfig());
+  //mapper.SetPrimaryHT(Environment::getHashtable());
+  //mapper.SetWriteMapperCigars(true);
+}
+
+int main(int argc, char **argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  ::testing::FLAGS_gtest_throw_on_failure = true;
+  /* ::testing::Environment* const env = */ ::testing::AddGlobalTestEnvironment(new Environment);
+  return RUN_ALL_TESTS();
+}
+
+std::vector<char> slurp(const boost::filesystem::path &filePath)
+{
+  const ssize_t fileSize = file_size(filePath);
+  if (0 == fileSize)
+  {
+    return std::vector<char>();
+  }
+  std::vector<char> ret;
+  ret.resize(fileSize);
+  std::ifstream is(filePath.string());
+  if (is && is.read(ret.data(), fileSize) && (fileSize == is.gcount()))
+  {
+    return ret;
+  }
+  BOOST_THROW_EXCEPTION(dragenos::common::IoException(errno, "Failed to read file"));
+}
+
+void Environment::SetUp()
+{
+  const auto argv = testing::internal::GetArgvs();
+  namespace bfs = boost::filesystem;
+  ASSERT_TRUE(argv.size() > 1 || (nullptr != getenv("REFDIR"))) << "Checking for reference-directory on the command line or in the environment variable REFDIR";
+  const bfs::path referenceDir(argv.size() > 1 ? argv[1] : getenv("REFDIR"));
+  //const bfs::path readsPath(argv[2]);
+  //const bfs::path mappingsPath(argv[3]);
+  ASSERT_TRUE(exists(referenceDir)) << "checking the existence of the reference-directory: " << referenceDir;
+  const bfs::path hashtableConfigFile = referenceDir / "hash_table.cfg.bin";
+  ASSERT_TRUE(exists(hashtableConfigFile)) << "checking the existence of the hashtable config: " << hashtableConfigFile;
+  const std::vector<char> config = slurp(hashtableConfigFile);
+  hashtableConfig.reset(new HashtableConfig(config.data(), config.size()));
+  const bfs::path hashtableFile = referenceDir / "hash_table.bin";
+  ASSERT_TRUE(exists(hashtableFile)) << "checking the existence of the uncompressed hashtable: " << hashtableFile;
+  hashtableFd = open(hashtableFile.c_str(), O_RDONLY, 0);
+  ASSERT_LT(-1, hashtableFd) << "failed to open hashtable: " << hashtableFile << ": " << strerror(errno);
+  tableSize = boost::filesystem::file_size(hashtableFile);
+  const int prot = PROT_READ;
+  const int flags = MAP_PRIVATE | MAP_NORESERVE;
+  const int offset = 0;
+  table = static_cast<uint64_t*> (mmap(NULL, tableSize, prot, flags, hashtableFd, offset));
+  ASSERT_NE(MAP_FAILED, table) << "failed to map hashtable file: " << strerror(errno);
+  // As Hashtable can't be initialized after construction, it has to be built dynamically
+  hashtable.reset(new Hashtable(hashtableConfig.get(), table, tableSize));
+}
+
+void Environment::TearDown()
+{
+  if (-1 != hashtableFd)
+  {
+    close(hashtableFd);
+    hashtableFd = -1;
+  }
+  if (nullptr != table)
+  {
+    munmap(table, tableSize);
+    table = nullptr;
+  }
+  hashtable.reset(nullptr);
+}
+

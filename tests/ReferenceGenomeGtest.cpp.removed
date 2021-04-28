@@ -1,0 +1,1148 @@
+// Copyright 2013-2018 Edico Genome Corporation. All rights reserved.
+//
+// This file contains confidential and proprietary information of the Edico Genome
+// Corporation and is protected under the U.S. and international copyright and other
+// intellectual property laws.
+//
+// $Id$
+// $Author$
+// $Change$
+// $DateTime$
+//
+
+#include <inttypes.h>
+#include <linux/limits.h>
+#include <condition_variable>
+#include <mutex>
+#include "gtest/gtest.h"
+
+//#include <sys/types.h>
+//#include <sys/stat.h>
+//#include <sys/mman.h>
+//#include <fcntl.h>
+
+#include <boost/filesystem.hpp>
+
+//#include "dragen_diagnostics.hpp"
+//#include "align/GenHashtable.hpp"
+#include "reference/HashtableConfig.hpp"
+#include "align/ReferenceGenome.hpp"
+
+const uint8_t padding = 0;
+const uint8_t A       = 1;
+const uint8_t C       = 2;
+const uint8_t G       = 4;
+const uint8_t T       = 8;
+const uint8_t N       = 15;
+
+std::vector<uint64_t> default_pos_table = {1000000, 2000000};
+
+
+class Environment : public ::testing::Environment {
+public:
+  typedef dragenos::reference::HashtableConfig HashtableConfig;
+//  typedef dragenos::reference::HashtableTraits HashtableTraits;
+//  typedef dragenos::reference::Hashtable<HashtableTraits> Hashtable;
+  Environment() { }
+  virtual ~Environment() { }
+//  static Hashtable *getHashtable() {return hashtable.get();}
+  static HashtableConfig *getHashtableConfig() {return hashtableConfig.get();}
+  // Override this to define how to set up the environment.
+  void SetUp() override;
+
+  // Override this to define how to tear down the environment.
+  void TearDown() override;
+  static const std::vector<uint8_t> sequence;
+  static const std::vector<uint8_t> qualities;
+private:
+  static std::unique_ptr<HashtableConfig> hashtableConfig;
+//  static std::unique_ptr<Hashtable> hashtable;
+//  int hashtableFd;
+//  size_t tableSize;
+//  uint64_t* table;
+};
+
+std::unique_ptr<Environment::HashtableConfig> Environment::hashtableConfig(nullptr);
+//std::unique_ptr<Environment::Hashtable> Environment::hashtable(nullptr);
+
+std::vector<char> slurp(const boost::filesystem::path &filePath)
+{
+  const ssize_t fileSize = file_size(filePath);
+  if (0 == fileSize)
+  {
+    return std::vector<char>();
+  }
+  std::vector<char> ret;
+  ret.resize(fileSize);
+  std::ifstream is(filePath.string());
+  if (is && is.read(ret.data(), fileSize) && (fileSize == is.gcount()))
+  {
+    return ret;
+  }
+  BOOST_THROW_EXCEPTION(dragenos::common::IoException(errno, "Failed to read file"));
+}
+
+void Environment::SetUp()
+{
+  const auto argv = testing::internal::GetArgvs();
+  namespace bfs = boost::filesystem;
+  ASSERT_TRUE(argv.size() > 1 || (nullptr != getenv("REFDIR"))) << "Checking for reference-directory on the command line or in the environment variable REFDIR";
+  const bfs::path referenceDir(argv.size() > 1 ? argv[1] : getenv("REFDIR"));
+  //const bfs::path readsPath(argv[2]);
+  //const bfs::path mappingsPath(argv[3]);
+  ASSERT_TRUE(exists(referenceDir)) << "checking the existence of the reference-directory: " << referenceDir;
+  const bfs::path hashtableConfigFile = referenceDir / "hash_table.cfg.bin";
+  ASSERT_TRUE(exists(hashtableConfigFile)) << "checking the existence of the hashtable config: " << hashtableConfigFile;
+  const std::vector<char> config = slurp(hashtableConfigFile);
+  hashtableConfig.reset(new HashtableConfig(config.data(), config.size()));
+//  const bfs::path hashtableFile = referenceDir / "hash_table.bin";
+//  ASSERT_TRUE(exists(hashtableFile)) << "checking the existence of the uncompressed hashtable: " << hashtableFile;
+//  hashtableFd = open(hashtableFile.c_str(), O_RDONLY, 0);
+//  ASSERT_LT(-1, hashtableFd) << "failed to open hashtable: " << hashtableFile << ": " << strerror(errno);
+//  tableSize = boost::filesystem::file_size(hashtableFile);
+//  const int prot = PROT_READ;
+//  const int flags = MAP_PRIVATE | MAP_NORESERVE;
+//  const int offset = 0;
+//  table = static_cast<uint64_t*> (mmap(NULL, tableSize, prot, flags, hashtableFd, offset));
+//  ASSERT_NE(MAP_FAILED, table) << "failed to map hashtable file: " << strerror(errno);
+  // As Hashtable can't be initialized after construction, it has to be built dynamically
+//  hashtable.reset(new Hashtable(hashtableConfig.get(), table, tableSize));
+}
+
+void Environment::TearDown()
+{
+}
+
+namespace dragenos
+{
+namespace align
+{
+typedef reference::ReferenceDictionary ReferenceDictionary;
+class ReferenceGenomeTest : public testing::Test {
+  typedef dragenos::align::ReferenceGenome ReferenceGenome;
+  typedef dragenos::reference::HashtableConfig HashtableConfig;
+protected:
+  virtual void SetUptestCase()
+  {
+    m_ref = nullptr;
+    hashtableConfig = Environment::getHashtableConfig();
+    //DragenDiagnostics::Instance()->DisableAllDumps();
+
+    std::string srcpath = GetDragenunitPath() + std::string("../../src/test/dragenunit/workbench");
+    boost::filesystem::path p(srcpath);
+    m_srcdir = boost::filesystem::canonical(srcpath);
+    m_refdir = "";
+  }
+
+  virtual void TearDowntestCase()
+  {
+    if (m_ref) {
+      delete m_ref;
+      m_ref = NULL;
+    }
+    if (m_refdir.find("tmp") != std::string::npos) {
+      std::ostringstream oss;
+      oss << "rm -rf " << m_refdir;
+      system(oss.str().c_str());
+    }
+  }
+
+  // This uses a constructor that is only available for unit testing purposes
+  void CreateRef(uint8_t* data, size_t nbytes, std::vector<uint64_t> posTable)
+  {
+    m_ref = new ReferenceGenome(data, nbytes, posTable);
+  }
+
+  // This is the main constructor used by dragen
+  void CreateRefFromFile(std::string& refdir, size_t startPad = 0, size_t midPad = 0)
+  {
+    std::string cfgPath = refdir + "/hash_table.cfg.bin";
+    m_ref = new ReferenceGenome(refdir, *hashtableConfig);
+  }
+
+  // Creates reference.bin file from the given data
+  void CreateRefFromData(
+      uint8_t* data, std::string hashcfg, size_t len, size_t startPad = 0, size_t midPad = 0)
+  {
+    std::ostringstream oss;
+    oss << "/tmp/refgenome_" << getpid() << "/";
+    m_refdir = oss.str();
+
+    std::ostringstream oss2;
+    oss2 << "mkdir -p " << m_refdir << " ; cp " << m_srcdir << "/" << hashcfg << ".bin " << m_refdir
+         << "/hash_table.cfg.bin; cp " << m_srcdir << "/" << hashcfg << " " << m_refdir << "/hash_table.cfg";
+
+    system(oss2.str().c_str());
+
+    std::ofstream f(m_refdir + "reference.bin", std::ios::out | std::ios::binary);
+    f.write((const char*)(data), len);
+    f.close();
+
+    CreateRefFromFile(m_refdir, startPad, midPad);
+  }
+
+  std::vector<uint64_t> GetPositionTable() { return m_ref->m_positions; }
+
+  ReferenceGenome* GetRef() { return m_ref; }
+
+  const HashtableConfig* GetCfg() { return hashtableConfig; }
+
+  char* GetDragenunitPath()
+  {
+    char* path = (char*)malloc(PATH_MAX);
+    memset(path, 0, PATH_MAX);
+    size_t len = readlink("/proc/self/exe", path, PATH_MAX);
+    path[len]  = '\0';
+    // Find the last occurence of a forward slash, the path separator.
+    char* pathEnd = strrchr(path, '/');
+    ++pathEnd;
+    *pathEnd = '\0';
+    return path;
+  }
+
+  // Validates that the position table matches expected results
+  void ValidatePositionTable(const std::vector<uint64_t>& expected)
+  {
+    std::vector<uint64_t> positions = GetPositionTable();
+    EXPECT_EQ(expected.size(), positions.size());
+    for (size_t i = 0; i < expected.size(); ++i) {
+      EXPECT_EQ(expected[i], positions[i]);
+    }
+  }
+
+  // expectedVals are 2 bytes per base, actualVals are 1 byte per base
+  void CompareExpectedToActual(uint8_t* expectedVals, uint8_t* actualVals, size_t len)
+  {
+    for (size_t pos = 0; pos < len; ++pos) {
+      const uint8_t shift    = pos & 1;
+      uint8_t       expected = expectedVals[pos / 2] >> (shift * 4) & 0xF;
+      uint8_t       actual   = actualVals[pos];
+      EXPECT_EQ(expected, actual);
+    }
+  }
+
+  // expectedVals are 2 bytes per base, actualVals are 1 byte per base
+  void ValidateChromosome(int index, uint8_t* expectedVals)
+  {
+    const ReferenceDictionary* dict = new ReferenceDictionary(*hashtableConfig);
+
+    // start is the start position in the expanded reference, **not** the offset
+    // into reference.bin (e.g reference_startX in hash_table.cfg)
+    const int start = dict->get_start(index);
+    const int len   = dict->get_length(index);
+    //std::cerr << index << ": start: " << start << " len: " << len << "\n";
+    uint8_t* seq = (uint8_t*)malloc(len);
+    memset(seq, '?' /*0x77 */, len);
+    GetRef()->GetSeqInBytePerBaseFormat(seq, start, len /*, true */);
+    uint8_t* ref_start = expectedVals + (start / 2);
+    CompareExpectedToActual(ref_start, seq, len);
+    free(seq);
+  }
+
+  void ValidateEndOfRefException(const ssize_t last)
+  {
+    try {
+      GetRef()->get_base(last);
+      FAIL() << "Did not get expected exception";
+    } catch (dragenos::common::DragenOsException& e) {
+      std::string        msg = e.what();
+      std::ostringstream expected;
+      expected << "Reference position index " << last
+               << " exceeds maximum position in reference: " << last - 1;
+      EXPECT_TRUE(msg.find(expected.str()) != std::string::npos);
+    }
+  }
+
+  ReferenceGenome*        m_ref;
+  const HashtableConfig *hashtableConfig;
+  boost::filesystem::path m_srcdir;
+  std::string             m_refdir;
+};
+} // namespace align
+} // namespace dragenos
+
+using dragenos::align::ReferenceGenomeTest;
+
+TEST_F(ReferenceGenomeTest, TestInitPositionTable)
+{
+  std::string ref("/mnt/vault/test_data/runalltests_insert_stats/human/reference/hg19/v7/chr1and2");
+  if (!boost::filesystem::exists(ref)) {
+    std::cerr << "Warning: path does not exist - " << ref << std::endl;
+    return;
+  }
+
+  // Creating the reference initializes the position table
+  CreateRefFromFile(ref);
+  std::vector<uint64_t> expected = {163840,
+                                    173824,  // [beginN, endN)
+                                    249404461,
+                                    249414461,
+                                    249415184,
+                                    249425168,
+                                    492604557,
+                                    492614557,
+                                    492614557,
+                                    492614557};
+  ValidatePositionTable(expected);
+}
+
+TEST_F(ReferenceGenomeTest, TestGetBaseChrY)
+{
+  std::string ref("/mnt/vault/test_data/runalltests_insert_stats/human/reference/hg19/v7/chrY");
+  if (!boost::filesystem::exists(ref)) {
+    std::cerr << "Warning: path does not exist - " << ref << std::endl;
+    return;
+  }
+  CreateRefFromFile(ref);
+
+  // 0x0 = padding
+  // 0x1 = A
+  // 0x2 = C
+  // 0x4 = G
+  // 0x8 = T
+  // 0xF = N
+
+  const uint32_t begtrimLen      = 9984;
+  const uint32_t endtrimLen      = 10000;
+  const uint64_t untrimmedSeqlen = 59373566;
+  const uint64_t trimmedSeqlen   = untrimmedSeqlen - begtrimLen - endtrimLen;
+  const uint64_t refLen          = 59681792;
+
+  const uint64_t startTrim = 163840;
+  const uint64_t endTrim   = startTrim + begtrimLen;
+
+  uint64_t currentPos = 0;
+
+  std::vector<uint64_t> expected = {163840, 173824, 59527406, 59537406, 59537406, 59537406};
+  ValidatePositionTable(expected);
+
+  // Base comes from padding and is NULL
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos));
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos + 1));
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos + startTrim - 1));
+
+  // Region with trimmed N's (these are not in reference.bin)
+  currentPos = startTrim;
+  EXPECT_EQ(N, GetRef()->get_base(currentPos));
+  EXPECT_EQ(N, GetRef()->get_base(currentPos + 1));
+  EXPECT_EQ(N, GetRef()->get_base(currentPos + 2));
+  currentPos = endTrim;
+  EXPECT_EQ(N, GetRef()->get_base(currentPos - 1));
+
+  //  Sequence  - still starts with a bunch of N's
+  const int numNs = 16;
+
+  for (size_t i = currentPos; i < currentPos + numNs; ++i) {
+    EXPECT_EQ(N, GetRef()->get_base(i));
+  }
+
+  // Start of sequence after N's:
+  currentPos += numNs;
+  EXPECT_EQ(C, GetRef()->get_base(currentPos));
+  EXPECT_EQ(T, GetRef()->get_base(currentPos + 1));
+  EXPECT_EQ(A, GetRef()->get_base(currentPos + 2));
+  EXPECT_EQ(A, GetRef()->get_base(currentPos + 3));
+
+  // End of sequence
+  currentPos = startTrim + begtrimLen + trimmedSeqlen;
+  EXPECT_EQ(T, GetRef()->get_base(currentPos - 4));
+  EXPECT_EQ(G, GetRef()->get_base(currentPos - 3));
+  EXPECT_EQ(G, GetRef()->get_base(currentPos - 2));
+  EXPECT_EQ(T, GetRef()->get_base(currentPos - 1));
+
+  // Region with trimmed N's (not in reference.bin)
+  EXPECT_EQ(N, GetRef()->get_base(currentPos));
+  EXPECT_EQ(N, GetRef()->get_base(currentPos + 1));
+  currentPos = startTrim + begtrimLen + trimmedSeqlen + endtrimLen;
+  EXPECT_EQ(N, GetRef()->get_base(currentPos - 2));
+  EXPECT_EQ(N, GetRef()->get_base(currentPos - 1));
+
+  // Padding at end
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos));
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos + 1));
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos + 2));
+  currentPos = refLen + begtrimLen + endtrimLen;
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos - 2));
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos - 1));
+
+  ValidateEndOfRefException(currentPos);
+}
+
+TEST_F(ReferenceGenomeTest, TestGetBaseChr1and2)
+{
+  std::string ref("/mnt/vault/test_data/runalltests_insert_stats/human/reference/hg19/v7/chr1and2");
+  if (!boost::filesystem::exists(ref)) {
+    std::cerr << "Warning: path does not exist - " << ref << std::endl;
+    return;
+  }
+  CreateRefFromFile(ref);
+
+  const uint64_t refLen = 492739584;
+
+  //
+  // chr1
+  //
+  uint32_t begtrimLen      = 9984;
+  uint32_t endtrimLen      = 10000;
+  uint64_t untrimmedSeqlen = 249250621;
+  uint64_t trimmedSeqlen   = untrimmedSeqlen - begtrimLen - endtrimLen;
+
+  uint64_t startChr1Seq = 163840;
+  // Have to include all of the trimmed N's for the start of seq 2
+  uint64_t startChr2Seq = 249395200 + begtrimLen + endtrimLen + begtrimLen;
+  uint64_t endTrim      = startChr1Seq + begtrimLen;
+
+  uint64_t currentPos = 0;
+
+  // Padding at the start
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos));
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos + 1));
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos + startChr1Seq - 1));
+
+  // Region with trimmed N's (these are not in reference.bin)
+  currentPos = startChr1Seq;
+  EXPECT_EQ(N, GetRef()->get_base(currentPos));
+  EXPECT_EQ(N, GetRef()->get_base(currentPos + 1));
+  EXPECT_EQ(N, GetRef()->get_base(currentPos + 2));
+  currentPos = endTrim;
+  EXPECT_EQ(N, GetRef()->get_base(currentPos - 1));
+
+  //  Sequence  - still starts with a bunch of N's
+  int numNs = 16;
+
+  for (size_t i = currentPos; i < currentPos + numNs; ++i) {
+    EXPECT_EQ(N, GetRef()->get_base(i));
+  }
+
+  // Start of sequence after N's:
+  currentPos += numNs;
+  EXPECT_EQ(T, GetRef()->get_base(currentPos));
+  EXPECT_EQ(A, GetRef()->get_base(currentPos + 1));
+  EXPECT_EQ(A, GetRef()->get_base(currentPos + 2));
+  EXPECT_EQ(C, GetRef()->get_base(currentPos + 3));
+
+  // End of sequence
+  currentPos = startChr1Seq + begtrimLen + trimmedSeqlen;
+  EXPECT_EQ(A, GetRef()->get_base(currentPos - 4));
+  EXPECT_EQ(G, GetRef()->get_base(currentPos - 3));
+  EXPECT_EQ(G, GetRef()->get_base(currentPos - 2));
+  EXPECT_EQ(G, GetRef()->get_base(currentPos - 1));
+
+  // Region with trimmed N's (not in reference.bin)
+  EXPECT_EQ(N, GetRef()->get_base(currentPos));
+  EXPECT_EQ(N, GetRef()->get_base(currentPos + 1));
+  currentPos = startChr1Seq + begtrimLen + trimmedSeqlen + endtrimLen;
+  EXPECT_EQ(N, GetRef()->get_base(currentPos - 2));
+  EXPECT_EQ(N, GetRef()->get_base(currentPos - 1));
+
+  //
+  // chr2
+  //
+
+  untrimmedSeqlen = 243199373;
+  trimmedSeqlen   = untrimmedSeqlen - begtrimLen - endtrimLen;
+
+  // Padding at beginning
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos));
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos + 1));
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos + 2));
+  currentPos = startChr2Seq - begtrimLen;
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos - 2));
+  EXPECT_EQ(padding, GetRef()->get_base(currentPos - 1));
+
+  // Region with trimmed N's (these are not in reference.bin)
+  EXPECT_EQ(N, GetRef()->get_base(currentPos));
+  EXPECT_EQ(N, GetRef()->get_base(currentPos + 2));
+  currentPos = currentPos + begtrimLen;
+  EXPECT_EQ(N, GetRef()->get_base(currentPos - 2));
+  EXPECT_EQ(N, GetRef()->get_base(currentPos - 1));
+
+  //  Sequence  - still starts with a bunch of N's
+  numNs = 16;
+
+  for (size_t i = currentPos; i < currentPos + numNs; ++i) {
+    EXPECT_EQ(N, GetRef()->get_base(i));
+  }
+
+  // 0x0 = padding
+  // 0x1 = A
+  // 0x2 = C
+  // 0x4 = G
+  // 0x8 = T
+  // 0xF = N
+  // Sequence - after N's
+  currentPos += numNs;
+  EXPECT_EQ(C, GetRef()->get_base(currentPos));
+  EXPECT_EQ(G, GetRef()->get_base(currentPos + 1));
+  EXPECT_EQ(T, GetRef()->get_base(currentPos + 2));
+  EXPECT_EQ(A, GetRef()->get_base(currentPos + 3));
+  currentPos += trimmedSeqlen - numNs;
+  EXPECT_EQ(G, GetRef()->get_base(currentPos - 4));
+  EXPECT_EQ(T, GetRef()->get_base(currentPos - 3));
+  EXPECT_EQ(T, GetRef()->get_base(currentPos - 2));
+  EXPECT_EQ(G, GetRef()->get_base(currentPos - 1));
+
+  // Region with trimmed N's (these are not in reference.bin)
+  for (size_t i = currentPos; i < currentPos + endtrimLen; ++i) {
+    EXPECT_EQ(N, GetRef()->get_base(i));
+  }
+
+  // Padding at the end of reference
+  currentPos           = currentPos + endtrimLen;
+  uint64_t endOfRefPos = refLen + (2 * begtrimLen) + (2 * endtrimLen);
+  for (size_t i = currentPos; i < endOfRefPos; ++i) {
+    EXPECT_EQ(padding, GetRef()->get_base(i));
+  }
+
+  ValidateEndOfRefException(endOfRefPos);
+}
+
+// Create our own binary reference file to control padding and N's
+TEST_F(ReferenceGenomeTest, TestGetBaseTwoSeqs)
+{
+  const int size           = 16;
+  uint8_t   ref_data[size] = {
+      0x00, 0x00, 0x00, 0x42, 0x8A, 0x00, 0x00, 0x12, 0x48, 0x11, 0x22, 0x44, 0x88, 0x00, 0x00, 0x00};
+  // Padding (in bases)
+  const size_t startPad = 6;
+  const size_t midPad   = 4;
+  CreateRefFromData(ref_data, std::string("hash_table.cfg"), size, startPad, midPad);
+
+  // Add the trimmed N's back to ref_data and use it as our expected results
+  const int num_untrimmed_bases                       = 52;
+  uint8_t ref_data_untrimmed[num_untrimmed_bases / 2] = {0x00, 0x00, 0x00, 0xff, 0xff, 0x42, 0x8A, 0xff, 0xff,
+                                                         0xff, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x12, 0x48,
+                                                         0x11, 0x22, 0x44, 0x88, 0xff, 0x00, 0x00, 0x00};
+
+  for (size_t pos = 0; pos < num_untrimmed_bases; ++pos) {
+    const uint8_t shift    = pos & 1;
+    uint8_t       expected = ref_data_untrimmed[pos / 2] >> (shift * 4) & 0xF;
+    uint8_t       actual   = GetRef()->get_base(pos);
+    EXPECT_EQ(expected, actual);
+  }
+
+  ValidateEndOfRefException(num_untrimmed_bases);
+}
+
+// Create our own binary reference file to control padding and N's.  Make some of
+// the trimmed sizes 0.  Made the last two chromosomes have no trimmed N's (bug 2150).
+TEST_F(ReferenceGenomeTest, TestSomeEmptyTrimmedRanges)
+{
+  const int    size           = 30;
+  const size_t startPad       = 4;
+  const size_t midPad         = 6;
+  uint8_t      ref_data[size] = {0x00, 0x00, 0x42, 0x81, 0x00, 0x00, 0x00, 0x12, 0x48, 0x11,
+                            0x22, 0x44, 0x88, 0x00, 0x00, 0x00, 0x42, 0x24, 0x14, 0x00,
+                            0x00, 0x00, 0x88, 0x42, 0x24, 0x14, 0x00, 0x00, 0x00, 0x00};
+  CreateRefFromData(ref_data, std::string("hash_table.cfg.zero_length_trim"), size, startPad, midPad);
+
+  // Validate positions table
+  std::vector<uint64_t> expected = {
+      8,
+      18,  // [beginN, endN)
+      24,
+      34,
+      72,
+      72  // Last position in file
+  };
+  ValidatePositionTable(expected);
+
+  // Add the trimmed N's back to ref_data and use it as our expected results
+  const int num_positions                       = 80;
+  uint8_t   ref_data_with_ns[num_positions / 2] = {0x00, 0x00, 0x42, 0x81, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00,
+                                                 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0x12, 0x48, 0x11,
+                                                 0x22, 0x44, 0x88, 0x00, 0x00, 0x00, 0x42, 0x24, 0x14, 0x00,
+                                                 0x00, 0x00, 0x88, 0x42, 0x24, 0x14, 0x00, 0x00, 0x00, 0x00};
+
+  // Get all positions with ReferenceGenome::get_base
+  for (size_t pos = 0; pos < num_positions; ++pos) {
+    const uint8_t shift    = pos & 1;
+    uint8_t       expected = ref_data_with_ns[pos / 2] >> (shift * 4) & 0xF;
+    uint8_t       actual   = GetRef()->get_base(pos);
+    EXPECT_EQ(expected, actual);
+  }
+  // Get all positions with ReferenceGenome::GetSeqInBytePerBaseFormat
+  uint8_t seq[num_positions];
+  memset(seq, '?' /*0x77 */, num_positions);
+  GetRef()->GetSeqInBytePerBaseFormat(seq, 0, num_positions);
+  CompareExpectedToActual(ref_data_with_ns, seq, num_positions - 8 /* skip last padded */);
+
+  // Same test, but with each chromosome (validates bug 2105)
+  ValidateChromosome(0, ref_data_with_ns);
+  ValidateChromosome(1, ref_data_with_ns);
+  ValidateChromosome(2, ref_data_with_ns);
+  ValidateChromosome(3, ref_data_with_ns);
+
+  ValidateEndOfRefException(num_positions);
+}
+
+// Create our own binary reference file to control padding and N's.  None of the
+// refseqs have trimmed N's.  Last 8 padded bytes in ref_data/reference.bin
+// are not validated.
+TEST_F(ReferenceGenomeTest, TestNoTrimmedRanges)
+{
+  const int    size           = 28;
+  const size_t startPad       = 4;
+  const size_t midPad         = 6;
+  uint8_t      ref_data[size] = {0x00, 0x00, 0x42, 0x81, 0x00, 0x00, 0x00, 0x12, 0x48, 0x11,
+                            0x22, 0x44, 0x88, 0x00, 0x00, 0x00, 0x42, 0x24, 0x14, 0x00,
+                            0x00, 0x00, 0x88, 0x42, 0x24, 0x14, 0x00, 0x00};
+  CreateRefFromData(ref_data, std::string("hash_table.cfg.all_zero_length_trim"), size, startPad, midPad);
+
+  std::vector<uint64_t> expected = {52, 52};
+  ValidatePositionTable(expected);
+
+  // Get all positions with ReferenceGenome::get_base
+  for (size_t pos = 0; pos < size; ++pos) {
+    const uint8_t shift    = pos & 1;
+    uint8_t       expected = ref_data[pos / 2] >> (shift * 4) & 0xF;
+    uint8_t       actual   = GetRef()->get_base(pos);
+    EXPECT_EQ(expected, actual);
+  }
+  // Get all positions with ReferenceGenome::GetSeqInBytePerBaseFormat
+  uint8_t seq[size];
+  memset(seq, '?' /*0x77 */, size);
+  GetRef()->GetSeqInBytePerBaseFormat(seq, 0, size);
+  CompareExpectedToActual(ref_data, seq, size - 8 /* skip last padded */);
+
+  // Same test, but with each chromosome (validates bug 2105)
+  ValidateChromosome(0, ref_data);
+  ValidateChromosome(1, ref_data);
+  ValidateChromosome(2, ref_data);
+  ValidateChromosome(3, ref_data);
+
+  ValidateEndOfRefException(size * 2);
+}
+
+/* FIXME - add test
+// Disabled as this test takes longer to run
+TEST_F(ReferenceGenomeTest, TestGetBaseHg38_alt_aware)
+{
+  // TODO: staging
+  std::string ref("/staging/vault/reference_genomes/Hsapiens/hg38_alt_aware/DRAGEN/5");
+  CreateRefFromFile(ref);
+}
+*/
+
+/* FIXME - add test?
+// Disabled as this test takes longer to run
+TEST_F(ReferenceGenomeTest, TestGetBaseHg19_alt_aware)
+{
+  // TODO: staging
+  std::string ref("/staging/vault/test_data/runalltests_insert_stats/human/reference/hg19/v7/hg19.fa.alt-aware");
+  //std::string ref("/staging/vault/test_data/runalltests_insert_stats/human/reference/hg19/v7/foo");
+  CreateRefFromFile(ref);
+
+  std::ostringstream fails;
+  bool fail = false;
+  fails << "FAILS:\n";
+  uint64_t last = 0;
+  std::vector<uint64_t> foo = GetPositionTable();
+  for ( size_t i = 0; i < foo.size(); i+=2 ) {
+    if ( last > foo[i] ) {
+      fails << last << " > " << foo[i] << "\n";
+      fail = true;
+    }
+    if ( foo[i] > foo[i+1] ) {
+      fails << foo[i] << " > " << foo[i+1] << "\n";
+      fail = true;
+    }
+
+    //EXPECT_LT(last, foo[i]);
+    //EXPECT_LT(foo[i], foo[i+1]);
+    last = foo[i+1];
+    std::cerr << foo[i] << " - " << foo[i+1] << std::endl;
+  }
+  if ( fail ) {
+    ASSERT(false, fails.str());
+  }
+}
+*/
+
+/*
+// Disabled as this test takes longer to run
+TEST_F(ReferenceGenomeTest, TestGetBaseHg19)
+{
+  std::string ref("/mnt/vault/test_data/runalltests_insert_stats/human/reference/hg19/v7/hg19.fa.default");
+  if ( !boost::filesystem::exists(ref) ) {
+    std::cerr << "Warning: path does not exist - " << ref << std::endl;
+    return;
+  }
+  CreateRefFromFile(ref);
+
+  //
+  // chrM
+  //
+  uint64_t startChrM = 163840;
+  // Verify bases at start of reference - chrM
+  uint64_t currentPos = startChrM;
+  EXPECT_EQ(G, GetRef()->get_base(currentPos));
+  EXPECT_EQ(A, GetRef()->get_base(currentPos+1));
+  EXPECT_EQ(T, GetRef()->get_base(currentPos+2));
+  EXPECT_EQ(C, GetRef()->get_base(currentPos+3));
+
+  // Verify bases at end of reference
+  uint64_t startSeq92 = 3052367872;
+  uint32_t refLen92 = 38502;
+  uint32_t totalTrimmed = 84989568;
+  currentPos = startSeq92 + refLen92 + totalTrimmed;
+  EXPECT_EQ(T, GetRef()->get_base(currentPos-8));
+  EXPECT_EQ(C, GetRef()->get_base(currentPos-7));
+  EXPECT_EQ(T, GetRef()->get_base(currentPos-6));
+  EXPECT_EQ(G, GetRef()->get_base(currentPos-5));
+  EXPECT_EQ(G, GetRef()->get_base(currentPos-4));
+  EXPECT_EQ(A, GetRef()->get_base(currentPos-3));
+  EXPECT_EQ(T, GetRef()->get_base(currentPos-2));
+  EXPECT_EQ(C, GetRef()->get_base(currentPos-1));
+}
+
+// Disabled as this test takes longer to run
+TEST_F(ReferenceGenomeTest, TestGetBaseBug1154)
+{
+  std::string ref("/staging/human/reference/bug_1154");
+  CreateRefFromFile(ref);
+
+  //
+  // Sequence 1
+  //
+  uint64_t startSeq1 = 163840;
+  uint32_t begTrim = 9984;
+  uint32_t numNs = 16;   // Number of N's in the sequence that were not trimmed
+  // Verify bases at start of reference - seq 1
+  uint64_t currentPos = startSeq1 + begTrim + numNs;
+  EXPECT_EQ(T, GetRef()->get_base(currentPos));
+  EXPECT_EQ(A, GetRef()->get_base(currentPos+1));
+  EXPECT_EQ(A, GetRef()->get_base(currentPos+2));
+  EXPECT_EQ(C, GetRef()->get_base(currentPos+3));
+  EXPECT_EQ(C, GetRef()->get_base(currentPos+4));
+  EXPECT_EQ(C, GetRef()->get_base(currentPos+5));
+  EXPECT_EQ(T, GetRef()->get_base(currentPos+6));
+  EXPECT_EQ(A, GetRef()->get_base(currentPos+7));
+
+  // Verify bases at end of reference
+  uint64_t startSeq296 = 3147289600;
+  uint32_t refLen296 = 4262;
+  uint64_t totalTrimmed = 28889609148;
+  currentPos = startSeq296 + refLen296 + totalTrimmed;
+  EXPECT_EQ(G, GetRef()->get_base(currentPos-8));
+  EXPECT_EQ(T, GetRef()->get_base(currentPos-7));
+  EXPECT_EQ(G, GetRef()->get_base(currentPos-6));
+  EXPECT_EQ(G, GetRef()->get_base(currentPos-5));
+  EXPECT_EQ(G, GetRef()->get_base(currentPos-4));
+  EXPECT_EQ(A, GetRef()->get_base(currentPos-3));
+  EXPECT_EQ(T, GetRef()->get_base(currentPos-2));
+  EXPECT_EQ(C, GetRef()->get_base(currentPos-1));
+}
+*/
+
+TEST_F(ReferenceGenomeTest, TestAllA)
+{
+  // A sequence of 32 A's, no mask bits set.  (In reference format, 4 bits per base)
+  uint8_t ref_data[16] = {
+      0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
+  CreateRef(ref_data, 16, default_pos_table);
+  uint8_t seq[32];
+  GetRef()->GetSeqInBytePerBaseFormat(seq, 0, 32);
+  for (int i = 0; i < 32; ++i) {
+    EXPECT_EQ(seq[i], 1);
+  }
+}
+
+TEST_F(ReferenceGenomeTest, TestAllACGT)
+{
+  // A sequence of 32 bases, round-robining ACGT. (In reference format, 4 bits per base)
+  // Remember intel is little endian, so this gives the order 1, 2, 4, 8
+  uint8_t ref_data[16] = {
+      0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84};
+
+  uint8_t seq[8];
+  CreateRef(ref_data, 16, default_pos_table);
+  GetRef()->GetSeqInBytePerBaseFormat(seq, 4, 12);
+  for (int i = 0; i < 8; ++i) {
+    size_t        newpos   = i + 4;
+    const uint8_t shift    = newpos & 1;
+    uint8_t       expected = (ref_data[newpos / 2] >> (shift * 4)) & 0xF;
+    EXPECT_EQ(expected, seq[i]);
+  }
+}
+
+// Test GetSeqInBytePerBaseFormat where range is the entire sequence
+TEST_F(ReferenceGenomeTest, TestGetSeqTrimmedInSeq)
+{
+  // A sequence of 32 bases, round-robining ACGT. (In reference format, 4 bits per base)
+  // Remember intel is little endian, so this gives the order 1, 2, 4, 8
+  const size_t bytes           = 16;
+  const size_t num_pos         = bytes * 2;
+  uint8_t      ref_data[bytes] = {
+      0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84};
+
+  std::vector<uint64_t> positions{0, 12, 44, 54};
+  CreateRef(ref_data, bytes, positions);
+
+  uint8_t seq[num_pos];
+  memset(seq, 0, num_pos);
+  GetRef()->GetSeqInBytePerBaseFormat(seq, 12, num_pos);
+
+  for (size_t i = 0; i < num_pos; ++i) {
+    size_t        newpos   = i;
+    const uint8_t shift    = newpos & 1;
+    uint8_t       expected = (ref_data[newpos / 2] >> (shift * 4)) & 0xF;
+    EXPECT_EQ(expected, seq[i]);
+  }
+}
+
+// Test GetSeqInBytePerBaseFormat where range is the trimmed region
+TEST_F(ReferenceGenomeTest, TestGetSeqTrimmedInTrimmedRegion)
+{
+  // A sequence of 32 bases, round-robining ACGT. (In reference format, 4 bits per base)
+  // Remember intel is little endian, so this gives the order 1, 2, 4, 8
+  const size_t bytes           = 16;
+  uint8_t      ref_data[bytes] = {
+      0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84};
+
+  std::vector<uint64_t> positions{0, 12, 44, 54};
+  CreateRef(ref_data, bytes, positions);
+
+  uint8_t seq[10];
+  memset(seq, 0, 10);
+  GetRef()->GetSeqInBytePerBaseFormat(seq, 44, 10);
+
+  for (size_t i = 0; i < 10; ++i) {
+    EXPECT_EQ(N, seq[i]);
+  }
+}
+
+// Test GetSeqInBytePerBaseFormat where range overlaps trimmed and sequence region
+TEST_F(ReferenceGenomeTest, TestGetSeqTrimmedOverlap)
+{
+  // A sequence of 32 bases, round-robining ACGT. (In reference format, 4 bits per base)
+  // Remember intel is little endian, so this gives the order 1, 2, 4, 8
+  const size_t bytes           = 16;
+  uint8_t      ref_data[bytes] = {
+      0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84};
+
+  std::vector<uint64_t> positions{0, 12, 44, 54};
+  CreateRef(ref_data, bytes, positions);
+
+  uint8_t seq[54];
+  memset(seq, 0, 54);
+  GetRef()->GetSeqInBytePerBaseFormat(seq, 0, 54);
+
+  // First trimmed region
+  for (size_t i = 0; i < 12; ++i) {
+    EXPECT_EQ(N, seq[i]);
+  }
+  // Sequence
+  for (size_t i = 12; i < 44; ++i) {
+    size_t        newpos   = i - 12;
+    const uint8_t shift    = newpos & 1;
+    uint8_t       expected = (ref_data[newpos / 2] >> (shift * 4)) & 0xF;
+    EXPECT_EQ(expected, seq[i]);
+  }
+  // End trimmed region
+  for (size_t i = 44; i < 54; ++i) {
+    EXPECT_EQ(N, seq[i]);
+  }
+}
+
+// Test GetSeqInBytePerBaseFormat where range overlap multiple chromosomes
+TEST_F(ReferenceGenomeTest, TestGetSeqTrimmedOverlapChromosomes)
+{
+  // A sequence of 32 bases, round-robining ACGT. (In reference format, 4 bits per base)
+  // Remember intel is little endian, so this gives the order 1, 2, 4, 8
+  const size_t bytes           = 16;
+  uint8_t      ref_data[bytes] = {
+      0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84};
+
+  std::vector<uint64_t> positions{0, 12, 28, 46, 46, 56, 72, 80};
+  CreateRef(ref_data, bytes, positions);
+
+  uint8_t seq[80];
+  memset(seq, 0, 80);
+  GetRef()->GetSeqInBytePerBaseFormat(seq, 0, 80);
+
+  // First trimmed region
+  for (size_t i = 0; i < 12; ++i) {
+    EXPECT_EQ(N, seq[i]);
+  }
+  // First sequence
+  for (size_t i = 12; i < 28; ++i) {
+    size_t        newpos   = i - 12;
+    const uint8_t shift    = newpos & 1;
+    uint8_t       expected = (ref_data[newpos / 2] >> (shift * 4)) & 0xF;
+    EXPECT_EQ(expected, seq[i]);
+  }
+  // End trimmed region and beginning of second trimmed region
+  for (size_t i = 28; i < 56; ++i) {
+    EXPECT_EQ(N, seq[i]);
+  }
+  // Second sequence
+  for (size_t i = 56; i < 72; ++i) {
+    size_t        newpos   = i - 56;
+    const uint8_t shift    = newpos & 1;
+    uint8_t       expected = (ref_data[newpos / 2] >> (shift * 4)) & 0xF;
+    EXPECT_EQ(expected, seq[i]);
+  }
+  // Final trimmed regin
+  for (size_t i = 72; i < 80; ++i) {
+    EXPECT_EQ(N, seq[i]);
+  }
+}
+
+// Test GetSeqInBytePerBaseFormat where range overlaps trimmed and sequence region
+TEST_F(ReferenceGenomeTest, TestGetSeqBug2050)
+{
+  // A sequence of 32 bases, round-robining ACGT. (In reference format, 4 bits per base)
+  // Remember intel is little endian, so this gives the order 1, 2, 4, 8
+  const size_t bytes           = 16;
+  uint8_t      ref_data[bytes] = {
+      0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84, 0x21, 0x84};
+
+  std::vector<uint64_t> positions{0, 12, 44, 54};
+  CreateRef(ref_data, bytes, positions);
+
+  uint8_t seq[54];
+  memset(seq, 0, 54);
+  GetRef()->GetSeqInBytePerBaseFormat(seq, 0, 54);
+
+  // First trimmed region
+  for (size_t i = 0; i < 12; ++i) {
+    EXPECT_EQ(N, seq[i]);
+  }
+  // Sequence
+  for (size_t i = 12; i < 44; ++i) {
+    size_t        newpos   = i - 12;
+    const uint8_t shift    = newpos & 1;
+    uint8_t       expected = (ref_data[newpos / 2] >> (shift * 4)) & 0xF;
+    EXPECT_EQ(expected, seq[i]);
+  }
+  // End trimmed region
+  for (size_t i = 44; i < 54; ++i) {
+    EXPECT_EQ(N, seq[i]);
+  }
+}
+
+TEST_F(ReferenceGenomeTest, TestPercentGC)
+{
+  // Test calculation of percent GC content.
+  //
+  // 1 = A
+  // 2 = C
+  // 4 = G
+  // 8 = T
+  uint8_t ref_data[16] = {
+      0x11, 0x88, 0x11, 0x88, 0x11, 0x88, 0x11, 0x88, 0x11, 0x88, 0x11, 0x88, 0x22, 0x44, 0x22, 0x44};
+  CreateRef(ref_data, 16, default_pos_table);
+
+  // Calculate the percent of GC bases
+  uint64_t start_pos = 0;
+  size_t   len       = 32;
+
+  double expected_val = 0.25;
+  double pct          = GetRef()->CalculatePercentGC(start_pos, len);
+  EXPECT_EQ(pct, expected_val);
+}
+
+TEST_F(ReferenceGenomeTest, TestPercentGCWithN)
+{
+  // Test calculation of percent GC content with N's. N's are excluded in the total count.
+  //
+  // 0x1 = A
+  // 0x2 = C
+  // 0x4 = G
+  // 0x8 = T
+  // 0xF = N
+  uint8_t ref_data[16] = {
+      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x11, 0x88, 0x11, 0x88, 0x11, 0x88, 0x22, 0x44, 0x22, 0x44};
+  CreateRef(ref_data, 16, default_pos_table);
+
+  // Calculate the percent of GC bases
+  uint64_t start_pos = 0;
+  size_t   len       = 32;
+
+  double expected_val = 0.4;
+  double pct          = GetRef()->CalculatePercentGC(start_pos, len);
+  EXPECT_EQ(pct, expected_val);
+}
+
+TEST_F(ReferenceGenomeTest, TestPercentGCWithTrimmedRegions)
+{
+  // Test calculation of percent GC content with version 5 hash tables where beginning
+  // and ending N's in the sequence are trimmed out of reference.bin
+  //
+  // 0x1 = A
+  // 0x2 = C
+  // 0x4 = G
+  // 0x8 = T
+  uint8_t               ref_data[10] = {0x11, 0x88, 0x11, 0x88, 0x11, 0x88, 0x22, 0x44, 0x22, 0x44};
+  std::vector<uint64_t> positions{0, 12, 32, 42};
+  CreateRef(ref_data, 10, positions);
+
+  // Calculate the percent of GC bases
+  //uint64_t start_pos = 0;
+  //size_t len = 52;
+
+  double expected_val = 0.4;
+  // Range is full  sequence
+  EXPECT_EQ(expected_val, GetRef()->CalculatePercentGC(12, 20));
+  // Range is in trimed region, these results should return NaN
+  double testVal;
+  testVal = GetRef()->CalculatePercentGC(2, 10);
+  EXPECT_TRUE(std::isnan(testVal));
+  testVal = GetRef()->CalculatePercentGC(32, 42);
+  EXPECT_TRUE(std::isnan(testVal));
+  // Range overlapps trimmed region and sequence
+  EXPECT_EQ(expected_val, GetRef()->CalculatePercentGC(6, 36));
+}
+
+TEST_F(ReferenceGenomeTest, TestPercentGCOneSequenceTrimmed)
+{
+  // Test calculation of percent GC content with version 5 hash tables where beginning
+  // and ending N's in the sequence are trimmed out of reference.bin
+  //
+  // 0x1 = A
+  // 0x2 = C
+  // 0x4 = G
+  // 0x8 = T
+  uint8_t               ref_data[10] = {0x11, 0x88, 0x11, 0x88, 0x11, 0x88, 0x22, 0x44, 0x22, 0x44};
+  std::vector<uint64_t> positions{0, 12, 32, 42};
+  CreateRef(ref_data, 10, positions);
+
+  // Calculate the percent of GC bases
+  //uint64_t start_pos = 0;
+  //size_t len = 52;
+
+  double expected_val = 0.4;
+  // Range is full  sequence
+  EXPECT_EQ(expected_val, GetRef()->CalculatePercentGC(12, 32));
+  // Range is in trimed region, these results should return NaN
+  double testVal;
+  testVal = GetRef()->CalculatePercentGC(2, 10);
+  EXPECT_TRUE(std::isnan(testVal));
+  testVal = GetRef()->CalculatePercentGC(32, 42);
+  EXPECT_TRUE(std::isnan(testVal));
+  // Range overlapps trimmed region and sequence
+  EXPECT_EQ(expected_val, GetRef()->CalculatePercentGC(6, 36));
+}
+
+TEST_F(ReferenceGenomeTest, TestPercentGCTwoSequencesTrimmed)
+{
+  // Test calculation of percent GC content with version 5 hash tables where beginning
+  // and ending N's in the sequence are trimmed out of reference.bin
+  //
+  // 0x1 = A
+  // 0x2 = C
+  // 0x4 = G
+  // 0x8 = T
+  // No padding between sequences
+  uint8_t ref_data[16] = {
+      0x11, 0x88, 0x11, 0x11, 0x42, 0x24, 0x22, 0x44, 0x22, 0x44, 0x88, 0x11, 0x44, 0x11, 0x88, 0x22};
+  std::vector<uint64_t> positions{0, 12, 28, 46, 46, 56, 72, 80};
+  CreateRef(ref_data, 16, positions);
+
+  double expected_val = 0.5;
+  // Range is full sequence for each chromosome
+  EXPECT_EQ(expected_val, GetRef()->CalculatePercentGC(12, 20));
+  EXPECT_EQ(expected_val, GetRef()->CalculatePercentGC(38, 64));
+  // Range crosses sequences boundaries
+  EXPECT_EQ(expected_val, GetRef()->CalculatePercentGC(0, 72));
+}
+
+TEST_F(ReferenceGenomeTest, TestPercentGCTwoSequencesTrimmedBug)
+{
+  // Test calculation of percent GC content with version 5 hash tables where beginning
+  // and ending N's in the sequence are trimmed out of reference.bin
+  //
+  // 0x1 = A
+  // 0x2 = C
+  // 0x4 = G
+  // 0x8 = T
+  // No padding between sequences
+  uint8_t ref_data[16] = {
+      0x11, 0x88, 0x11, 0x11, 0x42, 0x24, 0x22, 0x44, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22};
+  std::vector<uint64_t> positions{0, 1000, 1016, 2016, 2016, 3016, 3032, 4032};
+  CreateRef(ref_data, 16, positions);
+
+  double expected_val = 1.0;
+  // Range is full sequence for each chromosome
+  EXPECT_EQ(expected_val, GetRef()->CalculatePercentGC(3016, 16));
+}
+
+TEST_F(ReferenceGenomeTest, TestPercentGCEndOfReference)
+{
+  // Test calculation of percent GC content with N's. N's are excluded in the total count.
+  //
+  // 0x1 = A
+  // 0x2 = C
+  // 0x4 = G
+  // 0x8 = T
+  // No padding between sequences
+  uint8_t               ref_data[21] = {0x11, 0x24, 0x11, 0x42, 0x11, 0x88, 0x22, 0x44, 0x22, 0x44, 0x88,
+                          0x11, 0x44, 0x11, 0x88, 0x22, 0x00, 0x00, 0x00, 0x00, 0x00};
+  std::vector<uint64_t> positions{0, 12, 44, 52};
+  CreateRef(ref_data, 21, positions);
+
+  double expected_val = 0.5;
+  // Range is full sequence
+  EXPECT_EQ(expected_val, GetRef()->CalculatePercentGC(12, 42));
+  // Range goes into padding at end of refrence
+  EXPECT_EQ(expected_val, GetRef()->CalculatePercentGC(0, 62));
+}
+
+TEST_F(ReferenceGenomeTest, TestCountBasesOneSeq)
+{
+  //
+  // 0x1 = A
+  // 0x2 = C
+  // 0x4 = G
+  // 0x8 = T
+  // 0x15 = N
+  // No padding between sequences
+  uint8_t ref_data[16] = {
+      0x11, 0x24, 0x11, 0x42, 0x11, 0x88, 0x22, 0x44, 0x22, 0x44, 0x88, 0x11, 0x44, 0x11, 0x88, 0x22};
+  std::vector<uint64_t> positions{0, 12, 44, 52};
+  CreateRef(ref_data, 16, positions);
+
+  // Full reference
+  EXPECT_EQ(10U, GetRef()->CountBases(0, 52, 'A'));
+  EXPECT_EQ(8U, GetRef()->CountBases(0, 52, 'C'));
+  EXPECT_EQ(8U, GetRef()->CountBases(0, 52, 'G'));
+  EXPECT_EQ(6U, GetRef()->CountBases(0, 52, 'T'));
+  EXPECT_EQ(20U, GetRef()->CountBases(0, 52, 'N'));
+
+  // Half reference
+  EXPECT_EQ(4U, GetRef()->CountBases(28, 24, 'A'));
+  EXPECT_EQ(4U, GetRef()->CountBases(28, 24, 'C'));
+  EXPECT_EQ(4U, GetRef()->CountBases(28, 24, 'G'));
+  EXPECT_EQ(4U, GetRef()->CountBases(28, 24, 'T'));
+  EXPECT_EQ(8U, GetRef()->CountBases(28, 24, 'N'));
+}
+
+TEST_F(ReferenceGenomeTest, TestCountBasesTwoSeqs)
+{
+  //
+  // 0x1 = A
+  // 0x2 = C
+  // 0x4 = G
+  // 0x8 = T
+  // 0x15 = N
+  // No padding between sequences
+  uint8_t ref_data[16] = {
+      0x11, 0x24, 0x11, 0x42, 0x11, 0x88, 0x22, 0x44, 0x22, 0x44, 0x88, 0x11, 0x44, 0x11, 0x88, 0x22};
+  std::vector<uint64_t> positions{0, 12, 28, 46, 46, 56, 72, 80};
+  CreateRef(ref_data, 16, positions);
+
+  // Full reference, both seqs and all trimmed Ns
+  EXPECT_EQ(10U, GetRef()->CountBases(0, 80, 'A'));
+  EXPECT_EQ(8U, GetRef()->CountBases(0, 80, 'C'));
+  EXPECT_EQ(8U, GetRef()->CountBases(0, 80, 'G'));
+  EXPECT_EQ(6U, GetRef()->CountBases(0, 80, 'T'));
+  EXPECT_EQ(48U, GetRef()->CountBases(0, 80, 'N'));
+
+  // End of first sequence through start of second
+  EXPECT_EQ(4U, GetRef()->CountBases(20, 44, 'A'));
+  EXPECT_EQ(4U, GetRef()->CountBases(20, 44, 'C'));
+  EXPECT_EQ(4U, GetRef()->CountBases(20, 44, 'G'));
+  EXPECT_EQ(4U, GetRef()->CountBases(20, 44, 'T'));
+  EXPECT_EQ(28U, GetRef()->CountBases(20, 44, 'N'));
+}

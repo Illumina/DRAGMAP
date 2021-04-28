@@ -1,0 +1,25 @@
+Prerequisites
+-------------
+
+* CentOS Linux release = 7.6.1810
+* gcc-c++ >= 4.8.5-36.el7_6.2
+* boost169-devel >= 1.69.0-1.el7
+* imake >= 1:3.82-23.el7
+
+Install
+-------
+
+The basic procedure is:
+
+  make
+  make install
+
+Variables controlling the build process:
+
+* GCC_BASE [/usr]
+* CXX [/usr/bin/g++]
+* BOOST_ROOT [/usr]
+* BOOST_INCLUDEDIR [/usr/include/boost169]
+* BOOST_LIBRARYDIR [/usr/lib/boost169]
+* CPLUS_INCLUDE_PATH (or CPATH ) for gtest include directory
+* LIBRARY_PATH for gtest libraries

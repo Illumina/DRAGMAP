@@ -1,0 +1,173 @@
+Reference sequence:
+  Original:        630
+  Encoded:      328704
+  Masked:       328074  (99.8%)
+  Unmasked:        630
+  A bases:         175
+  C bases:         104
+  G bases:         149
+  T bases:         202
+  GC content: 40.2%
+  IUPAC-IUB Codes:
+    0 bases (padding)     :     328074
+    1 base  (A,C,G,T)     :        630
+    2 bases (K,M,R,S,W,Y) :          0
+    3 bases (B,D,H,V)     :          0
+    4 bases (N)           :          0
+
+Reference K-mers: (K=17)
+  Distinct K-mers:            257
+  K-mer positions:            614
+  Palindromes:                  0
+  Total K-mer records:        614
+  Thinned out:                  0
+  Populated seeds:            614
+  NOTE: All K-mer frequency stats are w.r.t. reference K-mer positions,
+        and hence a K-mer with frequency N is included N times.
+  Average K-mer frequency: 2.12
+  K-mer frequency histogram:
+     1   2    3  
+     257 24   333
+     42% 3.9% 54%
+  Log2 K-mer frequency histogram:
+     0   1  
+     257 357
+     42% 58%
+
+Alt contig K-mer positions:           0
+  Liftover K-mer matching:            0  ( 0.0%)
+  Liftover K-mer different:           0  ( 0.0%)
+  No liftover:                        0  ( 0.0%)
+
+Raw primary-seed liftover groups:          0
+  Average liftover group size:          0.00
+  Histogram of liftover group sizes:
+    -
+    -
+    -
+  Histogram of ALT hit count with no liftover:
+    -
+    -
+    -
+
+Liftover groups after possible seed extension:          0
+  Liftover seed matching:              0  ( 0.0%)
+  Liftover seed injected:              0  ( 0.0%)
+  No liftover position:                0  ( 0.0%)
+  Average liftover group size:      0.00
+  Histogram of liftover group sizes:
+    -
+    -
+    -
+  Histogram of ALT hit count with no liftover:
+    -
+    -
+    -
+
+Hash records:
+  Bytes per record:             8
+  Number of records:         8192
+  Hit records:                614  ( 7.5%)
+  Extension records:            0  ( 0.0%)
+  Interval records:             0  ( 0.0%)
+  Chain records:                0  ( 0.0%)
+  Empty records:             7578  (92.5%)
+  Raw K-mer occupancy:   7.5%
+  Final occupancy:       7.5%
+
+Hash buckets:
+  Records per bucket: 8
+  Number of buckets:  1024
+  Histogram of raw K-mer bucket occupancy:
+     0   1   2    3    4    5     6     7     8    
+     707 174 31   84   22   2     1     2     1    
+     69% 17% 3.0% 8.2% 2.1% 0.20% 0.10% 0.20% 0.10%
+  Histogram of bucket occupancy after extending or rejecting high frequency seeds:
+     0   1   2    3    4    5     6     7     8    
+     707 174 31   84   22   2     1     2     1    
+     69% 17% 3.0% 8.2% 2.1% 0.20% 0.10% 0.20% 0.10%
+  Histogram of physical bucket occupancy as mapped:
+     0   1   2    3    4    5     6     7     8    
+     707 174 31   84   22   2     1     2     1    
+     69% 17% 3.0% 8.2% 2.1% 0.20% 0.10% 0.20% 0.10%
+
+Seed extensions:
+  Base seed length:              17
+  Average extended seed length:  0.0
+  Average extension increment:   0.0
+  Average extension steps:       0.00
+  Extension IDs utilization:     0%
+  Portion of reference K-mers...
+    All raw K-mers:                   614  (100.0%)
+    Extended to longer seeds:           0  (  0.0%)
+    Remaining as primary hit:         614  (100.0%)
+  Space in extension table:             0  (  0.0% of unmasked K-mers)
+  Average frequencies of reference K-mers...
+    All raw K-mers:                  2.12
+    Extended to longer seeds:        0.00
+    Remaining as primary hit:        2.12
+    As extended seed hit:            0.00
+    As primary or extended seed:     2.12
+  Extended seed length histogram:
+    -
+    -
+    -
+  Seed extension increment histogram:
+    -
+    -
+    -
+  Seed extension steps histogram:
+    -
+    -
+    -
+  Pre-extended K-mer frequency histogram:
+    -
+    -
+    -
+  Remaining primary hit K-mer frequency histogram:
+     1   2    3  
+     257 24   333
+     42% 3.9% 54%
+  Post-extended K-mer frequency histogram:
+    -
+    -
+    -
+
+Hash chaining and probing:
+  Number of chains: 0
+  Chain buckets:    0
+  Average length beyond each bucket...
+    chain:  0.0000
+    probe:  0.0000
+    either: 0.0000
+  Histogram of bucket probe lengths replaced by chaining:
+    -
+    -
+    -
+  Bucket chain length histogram:
+     0   
+     1024
+     100%
+  Bucket probe length histogram:
+     0   
+     1024
+     100%
+  Chain or probe length histogram:
+     0   
+     1024
+     100%
+
+Compression:          Records        Bits    Mean
+  auto pri hits:          614        2024   3.296
+  auto sec hits:            0         128  128.000
+  auto nul hits:       328090      656180   2.000
+  special hits:             0           0   0.000
+  chain pointers:           0           0   0.000
+  chain ends:               0           0   0.000
+  literals:                 0           0   0.000
+  ext literals:             0           0   0.000
+  TOTAL:               328704      658332   2.003
+  Misc bits:   5595
+  Final bits:  663992
+  Final bytes: 82999
+

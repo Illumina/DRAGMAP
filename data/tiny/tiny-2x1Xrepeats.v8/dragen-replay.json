@@ -1,0 +1,1762 @@
+{
+    "command_line": "\/staging\/rpetrovski\/dragen\/objtree_el7-master\/bin\/dragen --build-hash-table true --ht-reference tiny.fasta --output-directory tiny.v8",
+    "dragen_config": [
+        {
+            "name": "Aligner.align-direction",
+            "value": "4"
+        },
+        {
+            "name": "Aligner.aln-en-mask",
+            "value": "15"
+        },
+        {
+            "name": "Aligner.aln-enable",
+            "value": "1"
+        },
+        {
+            "name": "Aligner.backtrace-delay",
+            "value": "8"
+        },
+        {
+            "name": "Aligner.dedup-min-qual",
+            "value": "15"
+        },
+        {
+            "name": "Aligner.disable-lfsr",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.en-alt-hap-aln",
+            "value": "1"
+        },
+        {
+            "name": "Aligner.en-chimeric-aln",
+            "value": "1"
+        },
+        {
+            "name": "Aligner.exon-jump-en",
+            "value": "1"
+        },
+        {
+            "name": "Aligner.filt-clip1-pair",
+            "value": "10"
+        },
+        {
+            "name": "Aligner.filt-clip1-unpr",
+            "value": "-5"
+        },
+        {
+            "name": "Aligner.filt-clip2-pair",
+            "value": "5"
+        },
+        {
+            "name": "Aligner.filt-clip2-unpr",
+            "value": "-10"
+        },
+        {
+            "name": "Aligner.filt-min-qual",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.fix-overlap-mapq",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.gap-ext-pen",
+            "value": "1"
+        },
+        {
+            "name": "Aligner.gap-open-pen",
+            "value": "6"
+        },
+        {
+            "name": "Aligner.global",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.hard-clips",
+            "value": "6"
+        },
+        {
+            "name": "Aligner.hw-mapq-max",
+            "value": "250"
+        },
+        {
+            "name": "Aligner.leftalign-mode",
+            "value": "2"
+        },
+        {
+            "name": "Aligner.mapq-coeff",
+            "value": "152"
+        },
+        {
+            "name": "Aligner.mapq-floor-1snp",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.mapq-max",
+            "value": "60"
+        },
+        {
+            "name": "Aligner.mapq-min-len",
+            "value": "50"
+        },
+        {
+            "name": "Aligner.mapq-strict-sjs",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.match-score",
+            "value": "1"
+        },
+        {
+            "name": "Aligner.max-rescues",
+            "value": "1023"
+        },
+        {
+            "name": "Aligner.max-stitch-olap",
+            "value": "48"
+        },
+        {
+            "name": "Aligner.min-overhang",
+            "value": "6"
+        },
+        {
+            "name": "Aligner.min-overhang-ann",
+            "value": "6"
+        },
+        {
+            "name": "Aligner.min-score-coeff",
+            "value": "0.0"
+        },
+        {
+            "name": "Aligner.mismatch-pen",
+            "value": "4"
+        },
+        {
+            "name": "Aligner.no-align-score",
+            "value": "-8388608"
+        },
+        {
+            "name": "Aligner.no-ambig-strand",
+            "value": "1"
+        },
+        {
+            "name": "Aligner.no-noncan-motifs",
+            "value": "1"
+        },
+        {
+            "name": "Aligner.no-unclip-score",
+            "value": "1"
+        },
+        {
+            "name": "Aligner.no-unpaired",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.paired-mate-info",
+            "value": "1"
+        },
+        {
+            "name": "Aligner.pe-max-penalty",
+            "value": "255"
+        },
+        {
+            "name": "Aligner.pe-orientation",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.pe-sample-max-insert",
+            "value": "65535"
+        },
+        {
+            "name": "Aligner.resc-ifpair-len",
+            "value": "48"
+        },
+        {
+            "name": "Aligner.resc-nopair-len",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.rescue-ceil-factor",
+            "value": "3"
+        },
+        {
+            "name": "Aligner.rescue-hifreq",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.rescue-kmer-len",
+            "value": "32"
+        },
+        {
+            "name": "Aligner.rescue-max-snps",
+            "value": "7"
+        },
+        {
+            "name": "Aligner.rna-max-insert",
+            "value": "4000000"
+        },
+        {
+            "name": "Aligner.rna-pair-pen-rat",
+            "value": "5.71875"
+        },
+        {
+            "name": "Aligner.sample-mapq0",
+            "value": "1"
+        },
+        {
+            "name": "Aligner.sec-aligns",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.sec-aligns-hard",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.sec-phred-delta",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.sec-score-delta",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.supp-aligns",
+            "value": "3"
+        },
+        {
+            "name": "Aligner.supp-as-sec",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.sw-all",
+            "value": "0"
+        },
+        {
+            "name": "Aligner.sw-burst-diffs",
+            "value": "1"
+        },
+        {
+            "name": "Aligner.sw-early-max",
+            "value": "256"
+        },
+        {
+            "name": "Aligner.sw-extra-intvl",
+            "value": "1"
+        },
+        {
+            "name": "Aligner.unclip-score",
+            "value": "5"
+        },
+        {
+            "name": "Aligner.unpaired-pen",
+            "value": "80"
+        },
+        {
+            "name": "Aligner.xs-pair-penalty",
+            "value": "25"
+        },
+        {
+            "name": "Mapper.adapter-times",
+            "value": "0"
+        },
+        {
+            "name": "Mapper.ann-sj-max-indel",
+            "value": "10"
+        },
+        {
+            "name": "Mapper.chain-diam-lim",
+            "value": "8"
+        },
+        {
+            "name": "Mapper.chain-rad-lim",
+            "value": "5"
+        },
+        {
+            "name": "Mapper.cut-bases",
+            "value": "0"
+        },
+        {
+            "name": "Mapper.dark-base",
+            "value": "2"
+        },
+        {
+            "name": "Mapper.edit-chain-limit",
+            "value": "29"
+        },
+        {
+            "name": "Mapper.edit-mode",
+            "value": "0"
+        },
+        {
+            "name": "Mapper.edit-read-len",
+            "value": "100"
+        },
+        {
+            "name": "Mapper.edit-seed-num",
+            "value": "6"
+        },
+        {
+            "name": "Mapper.filt-good-qual",
+            "value": "0"
+        },
+        {
+            "name": "Mapper.filter-len-ratio",
+            "value": "4"
+        },
+        {
+            "name": "Mapper.intvl-max-hits",
+            "value": "16"
+        },
+        {
+            "name": "Mapper.intvl-min-chains",
+            "value": "8"
+        },
+        {
+            "name": "Mapper.intvl-sample-hits",
+            "value": "16"
+        },
+        {
+            "name": "Mapper.intvl-seed-length",
+            "value": "60"
+        },
+        {
+            "name": "Mapper.intvl-seed-longer",
+            "value": "8"
+        },
+        {
+            "name": "Mapper.intvl-target-hits",
+            "value": "32"
+        },
+        {
+            "name": "Mapper.map-orientations",
+            "value": "0"
+        },
+        {
+            "name": "Mapper.max-dram-reqs",
+            "value": "0"
+        },
+        {
+            "name": "Mapper.max-hifreq-hits",
+            "value": "16"
+        },
+        {
+            "name": "Mapper.max-intron-bases",
+            "value": "200000"
+        },
+        {
+            "name": "Mapper.max-lowq-bases",
+            "value": "4294967295"
+        },
+        {
+            "name": "Mapper.max-lowq-ratio",
+            "value": "4294967295"
+        },
+        {
+            "name": "Mapper.max-read-len",
+            "value": "4294967295"
+        },
+        {
+            "name": "Mapper.max-seed-chains",
+            "value": "511"
+        },
+        {
+            "name": "Mapper.max-splice-gap",
+            "value": "150"
+        },
+        {
+            "name": "Mapper.max-splice-olap",
+            "value": "16"
+        },
+        {
+            "name": "Mapper.min-intron-bases",
+            "value": "20"
+        },
+        {
+            "name": "Mapper.min-trim-bases",
+            "value": "0"
+        },
+        {
+            "name": "Mapper.n-base-qual",
+            "value": "2"
+        },
+        {
+            "name": "Mapper.polyg-cutoff",
+            "value": "0"
+        },
+        {
+            "name": "Mapper.qual-cutoff",
+            "value": "0"
+        },
+        {
+            "name": "Mapper.read-edge-seeds",
+            "value": "0"
+        },
+        {
+            "name": "Mapper.rna-filt-ratio",
+            "value": "25"
+        },
+        {
+            "name": "Mapper.rna-max-covg-gap",
+            "value": "150"
+        },
+        {
+            "name": "Mapper.rna-max-recurs",
+            "value": "65536"
+        },
+        {
+            "name": "Mapper.rna-span-log-min",
+            "value": "13"
+        },
+        {
+            "name": "Mapper.seed-density",
+            "value": "0.5"
+        },
+        {
+            "name": "Mapper.seed-max-age",
+            "value": "31"
+        },
+        {
+            "name": "Mapper.seed-old-age",
+            "value": "9"
+        },
+        {
+            "name": "Mapper.splice-olap-adj",
+            "value": "4"
+        },
+        {
+            "name": "Mapper.trace-mode",
+            "value": "0"
+        },
+        {
+            "name": "Mapper.trace-offset",
+            "value": "0"
+        },
+        {
+            "name": "Mapper.trace-read-id",
+            "value": "0"
+        },
+        {
+            "name": "append-read-index-to-name",
+            "value": "false"
+        },
+        {
+            "name": "assert-valid-cigar",
+            "value": "false"
+        },
+        {
+            "name": "autodetect-reference-validate",
+            "value": "false"
+        },
+        {
+            "name": "bam2dbam-threads",
+            "value": "12"
+        },
+        {
+            "name": "bin-split-target-size",
+            "value": "104857600"
+        },
+        {
+            "name": "bin-split-threshold",
+            "value": "7158278826"
+        },
+        {
+            "name": "bin_memory",
+            "value": "21474836480"
+        },
+        {
+            "name": "binner-use-odirect",
+            "value": "true"
+        },
+        {
+            "name": "bqsr-context-low-quality-tail",
+            "value": "2"
+        },
+        {
+            "name": "bqsr-cycle-indel-context",
+            "value": "3"
+        },
+        {
+            "name": "bqsr-cycle-mismatch-context",
+            "value": "2"
+        },
+        {
+            "name": "bqsr-emit-indel-tags",
+            "value": "true"
+        },
+        {
+            "name": "bqsr-enable-recal-indels",
+            "value": "true"
+        },
+        {
+            "name": "bqsr-match-gatk",
+            "value": "true"
+        },
+        {
+            "name": "bqsr-max-cycle-value",
+            "value": "500"
+        },
+        {
+            "name": "build-hash-table",
+            "value": "true"
+        },
+        {
+            "name": "c2s_aligner_packet_size",
+            "value": "524288"
+        },
+        {
+            "name": "c2s_aligner_pool_size",
+            "value": "64"
+        },
+        {
+            "name": "c2s_decomp_packet_size",
+            "value": "1048576"
+        },
+        {
+            "name": "c2s_decomp_pool_size",
+            "value": "64"
+        },
+        {
+            "name": "c2s_graph_packet_size",
+            "value": "65536"
+        },
+        {
+            "name": "c2s_graph_pool_size",
+            "value": "256"
+        },
+        {
+            "name": "c2s_hmm_packet_size",
+            "value": "4096"
+        },
+        {
+            "name": "c2s_hmm_pool_size",
+            "value": "128"
+        },
+        {
+            "name": "c2s_smw_packet_size",
+            "value": "4096"
+        },
+        {
+            "name": "c2s_smw_pool_size",
+            "value": "128"
+        },
+        {
+            "name": "cgvcf-num-file-scan-threads",
+            "value": "8"
+        },
+        {
+            "name": "cgvcf-save-tmp-files",
+            "value": "false"
+        },
+        {
+            "name": "cgvcf-split-chromosomes",
+            "value": "false"
+        },
+        {
+            "name": "combine-samples-by-name",
+            "value": "false"
+        },
+        {
+            "name": "credentials-1",
+            "value": ""
+        },
+        {
+            "name": "credentials-2",
+            "value": ""
+        },
+        {
+            "name": "credentials-3",
+            "value": ""
+        },
+        {
+            "name": "dbam2bam_threads",
+            "value": "32"
+        },
+        {
+            "name": "debug",
+            "value": "0"
+        },
+        {
+            "name": "disable_reg_validation",
+            "value": "0"
+        },
+        {
+            "name": "distinct-dbam-input-format",
+            "value": "true"
+        },
+        {
+            "name": "dump-hang-diag-first",
+            "value": "true"
+        },
+        {
+            "name": "dump-map-align-registers",
+            "value": "0"
+        },
+        {
+            "name": "dump_config",
+            "value": "0"
+        },
+        {
+            "name": "dump_registers",
+            "value": "0"
+        },
+        {
+            "name": "dupmark-version",
+            "value": "sort"
+        },
+        {
+            "name": "echo_aligner_log",
+            "value": "0"
+        },
+        {
+            "name": "echo_general_log",
+            "value": "0"
+        },
+        {
+            "name": "echo_mapper_log",
+            "value": "0"
+        },
+        {
+            "name": "enable-auto-multifile",
+            "value": "true"
+        },
+        {
+            "name": "enable-bqsr",
+            "value": "false"
+        },
+        {
+            "name": "enable-deterministic-sort",
+            "value": "true"
+        },
+        {
+            "name": "enable-duplicate-marking",
+            "value": "false"
+        },
+        {
+            "name": "enable-hang-diag",
+            "value": "true"
+        },
+        {
+            "name": "enable-http-server",
+            "value": "false"
+        },
+        {
+            "name": "enable-map-align",
+            "value": "true"
+        },
+        {
+            "name": "enable-methylation-calling",
+            "value": "true"
+        },
+        {
+            "name": "enable-pstack",
+            "value": "true"
+        },
+        {
+            "name": "enable-public-bitstream",
+            "value": "false"
+        },
+        {
+            "name": "enable-rna-quantification",
+            "value": "false"
+        },
+        {
+            "name": "enable-sampling",
+            "value": "true"
+        },
+        {
+            "name": "enable-single-cell-rna",
+            "value": "false"
+        },
+        {
+            "name": "enable-sort",
+            "value": "true"
+        },
+        {
+            "name": "enable-spin",
+            "value": "false"
+        },
+        {
+            "name": "enable-umi-stat-estimator",
+            "value": "false"
+        },
+        {
+            "name": "enable-variant-caller",
+            "value": "false"
+        },
+        {
+            "name": "enable-vcf-indexing",
+            "value": "true"
+        },
+        {
+            "name": "enable-watchdog",
+            "value": "true"
+        },
+        {
+            "name": "enable-write-input-dbam",
+            "value": "false"
+        },
+        {
+            "name": "evict_all_intermediate_results",
+            "value": "false"
+        },
+        {
+            "name": "fastq-n-quality",
+            "value": "2"
+        },
+        {
+            "name": "fastq-offset",
+            "value": "33"
+        },
+        {
+            "name": "fastq2dbam_ratio",
+            "value": "2"
+        },
+        {
+            "name": "fastq_block_size",
+            "value": "1048576"
+        },
+        {
+            "name": "fastq_pool_size",
+            "value": "4"
+        },
+        {
+            "name": "fastqc-adapter-file",
+            "value": "adapter_sequences.fasta"
+        },
+        {
+            "name": "fastqc-granularity",
+            "value": "7"
+        },
+        {
+            "name": "fastqc-only",
+            "value": "false"
+        },
+        {
+            "name": "filter-flags-from-output",
+            "value": "0"
+        },
+        {
+            "name": "gc-metrics-cover-percent",
+            "value": "75"
+        },
+        {
+            "name": "gc-metrics-enable",
+            "value": "false"
+        },
+        {
+            "name": "gc-metrics-num-bins",
+            "value": "5"
+        },
+        {
+            "name": "gc-metrics-only-covered",
+            "value": "false"
+        },
+        {
+            "name": "gc-metrics-window-size",
+            "value": "100"
+        },
+        {
+            "name": "generate-en-tags",
+            "value": "false"
+        },
+        {
+            "name": "generate-md-tags",
+            "value": "false"
+        },
+        {
+            "name": "generate-xq-tags",
+            "value": "true"
+        },
+        {
+            "name": "generate-zs-tags",
+            "value": "false"
+        },
+        {
+            "name": "ht-anchor-bin-bits",
+            "value": "0"
+        },
+        {
+            "name": "ht-cost-coeff-seed-freq",
+            "value": "0.5"
+        },
+        {
+            "name": "ht-cost-coeff-seed-len",
+            "value": "1"
+        },
+        {
+            "name": "ht-cost-penalty",
+            "value": "0"
+        },
+        {
+            "name": "ht-cost-penalty-incr",
+            "value": "0.69999999999999996"
+        },
+        {
+            "name": "ht-crc-extended",
+            "value": "0"
+        },
+        {
+            "name": "ht-crc-primary",
+            "value": "0"
+        },
+        {
+            "name": "ht-dump-int-params",
+            "value": "0"
+        },
+        {
+            "name": "ht-ext-rec-cost",
+            "value": "4"
+        },
+        {
+            "name": "ht-max-dec-factor",
+            "value": "1"
+        },
+        {
+            "name": "ht-max-ext-incr",
+            "value": "12"
+        },
+        {
+            "name": "ht-max-ext-seed-len",
+            "value": "0"
+        },
+        {
+            "name": "ht-max-seed-freq",
+            "value": "16"
+        },
+        {
+            "name": "ht-max-seed-freq-len",
+            "value": "98"
+        },
+        {
+            "name": "ht-max-table-chunks",
+            "value": "0"
+        },
+        {
+            "name": "ht-mem-limit",
+            "value": "0GB"
+        },
+        {
+            "name": "ht-methylated",
+            "value": "false"
+        },
+        {
+            "name": "ht-min-repair-prob",
+            "value": "0.20000000000000001"
+        },
+        {
+            "name": "ht-override-size-check",
+            "value": "0"
+        },
+        {
+            "name": "ht-pri-max-seed-freq",
+            "value": "0"
+        },
+        {
+            "name": "ht-rand-hit-extend",
+            "value": "8"
+        },
+        {
+            "name": "ht-rand-hit-hifreq",
+            "value": "1"
+        },
+        {
+            "name": "ht-ref-seed-interval",
+            "value": "1"
+        },
+        {
+            "name": "ht-reference",
+            "value": "tiny.fasta"
+        },
+        {
+            "name": "ht-repair-strategy",
+            "value": "0"
+        },
+        {
+            "name": "ht-seed-len",
+            "value": "21"
+        },
+        {
+            "name": "ht-size",
+            "value": "0GB"
+        },
+        {
+            "name": "ht-soft-seed-freq-cap",
+            "value": "12"
+        },
+        {
+            "name": "ht-target-seed-freq",
+            "value": "4"
+        },
+        {
+            "name": "ht-test-only",
+            "value": "0"
+        },
+        {
+            "name": "ht-write-hash-bin",
+            "value": "0"
+        },
+        {
+            "name": "http-server-port",
+            "value": "7993"
+        },
+        {
+            "name": "input-qname-suffix-delimiter",
+            "value": "\/"
+        },
+        {
+            "name": "linkedreads-correction-table1",
+            "value": "linkedreads_corrections_1.txt"
+        },
+        {
+            "name": "linkedreads-correction-table2",
+            "value": "linkedreads_corrections_2.txt"
+        },
+        {
+            "name": "linkedreads-correction-table3",
+            "value": "linkedreads_corrections_3.txt"
+        },
+        {
+            "name": "linkedreads-enable",
+            "value": "false"
+        },
+        {
+            "name": "logfile_prefix",
+            "value": "\/opt\/edico\/logs\/"
+        },
+        {
+            "name": "mapper_cigar",
+            "value": "0"
+        },
+        {
+            "name": "max_bin_size",
+            "value": "943718400"
+        },
+        {
+            "name": "max_ios_inflight",
+            "value": "1024"
+        },
+        {
+            "name": "methylation-TAPS",
+            "value": "false"
+        },
+        {
+            "name": "methylation-generate-cytosine-report",
+            "value": "false"
+        },
+        {
+            "name": "methylation-generate-mbias-report",
+            "value": "false"
+        },
+        {
+            "name": "methylation-match-bismark",
+            "value": "false"
+        },
+        {
+            "name": "methylation-protocol",
+            "value": "none"
+        },
+        {
+            "name": "methylation-reports-only",
+            "value": "false"
+        },
+        {
+            "name": "min-predicted-output-gb",
+            "value": "200"
+        },
+        {
+            "name": "multiplier",
+            "value": "1"
+        },
+        {
+            "name": "no-reset",
+            "value": "false"
+        },
+        {
+            "name": "output-directory",
+            "value": "tiny.v8"
+        },
+        {
+            "name": "output-format",
+            "value": "bam"
+        },
+        {
+            "name": "pair-by-name",
+            "value": "true"
+        },
+        {
+            "name": "pair-suffix-delimiter",
+            "value": "\/"
+        },
+        {
+            "name": "partition-on-compression-bottleneck",
+            "value": "false"
+        },
+        {
+            "name": "pe-stats-continuous-update",
+            "value": "false"
+        },
+        {
+            "name": "pe-stats-interval-delay",
+            "value": "5"
+        },
+        {
+            "name": "pe-stats-interval-memory",
+            "value": "10"
+        },
+        {
+            "name": "pe-stats-interval-size",
+            "value": "25000"
+        },
+        {
+            "name": "pe-stats-sample-size",
+            "value": "100000"
+        },
+        {
+            "name": "pe-stats-update-log-only",
+            "value": "false"
+        },
+        {
+            "name": "preserve-bqsr-tags",
+            "value": "false"
+        },
+        {
+            "name": "preserve-map-align-order",
+            "value": "false"
+        },
+        {
+            "name": "qc-indel-denovo-quality-threshold",
+            "value": "0.02"
+        },
+        {
+            "name": "qc-snp-denovo-quality-threshold",
+            "value": "0.050000000000000003"
+        },
+        {
+            "name": "read-trimmers",
+            "value": "none"
+        },
+        {
+            "name": "recordset-memory",
+            "value": "1073741824"
+        },
+        {
+            "name": "reg_errors_are_warnings",
+            "value": "0"
+        },
+        {
+            "name": "remove-duplicates",
+            "value": "false"
+        },
+        {
+            "name": "repeat-genotype-enable",
+            "value": "false"
+        },
+        {
+            "name": "repeat-genotype-min-anchor-mapq",
+            "value": "60"
+        },
+        {
+            "name": "repeat-genotype-min-baseq",
+            "value": "20"
+        },
+        {
+            "name": "repeat-genotype-min-score",
+            "value": "0.90000000000000002"
+        },
+        {
+            "name": "repeat-genotype-read-depth",
+            "value": "0"
+        },
+        {
+            "name": "repeat-genotype-read-length",
+            "value": "0"
+        },
+        {
+            "name": "repeat-genotype-region-extension-length",
+            "value": "1000"
+        },
+        {
+            "name": "repeat-genotype-skip-unaligned",
+            "value": "true"
+        },
+        {
+            "name": "repeat-genotype-specs",
+            "value": ""
+        },
+        {
+            "name": "rna-ann-sj-min-len",
+            "value": "6"
+        },
+        {
+            "name": "rna-cv-min-expression",
+            "value": "0"
+        },
+        {
+            "name": "rna-gf-aggressive-filters",
+            "value": "false"
+        },
+        {
+            "name": "rna-gf-blast-pairs",
+            "value": ""
+        },
+        {
+            "name": "rna-gf-coverage-lookup-window",
+            "value": "1000"
+        },
+        {
+            "name": "rna-gf-enriched-genes",
+            "value": ""
+        },
+        {
+            "name": "rna-gf-enriched-only",
+            "value": "false"
+        },
+        {
+            "name": "rna-gf-exon-snap",
+            "value": "50"
+        },
+        {
+            "name": "rna-gf-mate-overhang",
+            "value": "8"
+        },
+        {
+            "name": "rna-gf-max-partners",
+            "value": "3"
+        },
+        {
+            "name": "rna-gf-merge-calls",
+            "value": "true"
+        },
+        {
+            "name": "rna-gf-min-alt-to-ref",
+            "value": "0.00999999978"
+        },
+        {
+            "name": "rna-gf-min-anchor",
+            "value": "12"
+        },
+        {
+            "name": "rna-gf-min-blast-pairs-eval",
+            "value": "1e-100"
+        },
+        {
+            "name": "rna-gf-min-breakpoint-mapq",
+            "value": "20"
+        },
+        {
+            "name": "rna-gf-min-cis-distance",
+            "value": "200000"
+        },
+        {
+            "name": "rna-gf-min-covered-bases",
+            "value": "125"
+        },
+        {
+            "name": "rna-gf-min-covered-bases-uncaptured",
+            "value": "79"
+        },
+        {
+            "name": "rna-gf-min-neighbor-dist",
+            "value": "15"
+        },
+        {
+            "name": "rna-gf-min-score",
+            "value": "0.5"
+        },
+        {
+            "name": "rna-gf-min-score-ratio",
+            "value": "0.150000006"
+        },
+        {
+            "name": "rna-gf-min-support",
+            "value": "2"
+        },
+        {
+            "name": "rna-gf-min-support-be",
+            "value": "10"
+        },
+        {
+            "name": "rna-gf-min-unique-alignments",
+            "value": "2"
+        },
+        {
+            "name": "rna-gf-num-threads",
+            "value": "4"
+        },
+        {
+            "name": "rna-gf-ref-anchor",
+            "value": "8"
+        },
+        {
+            "name": "rna-gf-restrict-genes",
+            "value": "true"
+        },
+        {
+            "name": "rna-gf-score-model",
+            "value": ""
+        },
+        {
+            "name": "rna-mapq-unique",
+            "value": "0"
+        },
+        {
+            "name": "rna-quantification-fld-max",
+            "value": "1000"
+        },
+        {
+            "name": "rna-quantification-fld-mean",
+            "value": "250"
+        },
+        {
+            "name": "rna-quantification-fld-sd",
+            "value": "25"
+        },
+        {
+            "name": "rna-quantification-full-concordance",
+            "value": "false"
+        },
+        {
+            "name": "rna-quantification-gc-bias",
+            "value": "true"
+        },
+        {
+            "name": "rna-quantification-inference-max",
+            "value": "10000"
+        },
+        {
+            "name": "rna-quantification-inference-min",
+            "value": "100"
+        },
+        {
+            "name": "rna-quantification-init-uniform",
+            "value": "0"
+        },
+        {
+            "name": "rna-quantification-library-type",
+            "value": "A"
+        },
+        {
+            "name": "rna-quantification-tlen-min",
+            "value": "500"
+        },
+        {
+            "name": "rna-quantification-use-em",
+            "value": "0"
+        },
+        {
+            "name": "rna_aligner_buffer_size",
+            "value": "67108864"
+        },
+        {
+            "name": "rna_aligner_buffers",
+            "value": "0"
+        },
+        {
+            "name": "s2c_dbam_block_size",
+            "value": "65536"
+        },
+        {
+            "name": "s2c_dbam_pool_size",
+            "value": "32"
+        },
+        {
+            "name": "s2c_decomp_block_size",
+            "value": "262144"
+        },
+        {
+            "name": "s2c_decomp_pool_size",
+            "value": "64"
+        },
+        {
+            "name": "s2c_graph_block_size",
+            "value": "16384"
+        },
+        {
+            "name": "s2c_graph_pool_size",
+            "value": "256"
+        },
+        {
+            "name": "s2c_hmm_block_size",
+            "value": "16384"
+        },
+        {
+            "name": "s2c_hmm_pool_size",
+            "value": "16384"
+        },
+        {
+            "name": "s2c_phase1_packet_size",
+            "value": "16384"
+        },
+        {
+            "name": "s2c_phase2_packet_size",
+            "value": "16384"
+        },
+        {
+            "name": "s2c_smw_block_size",
+            "value": "16384"
+        },
+        {
+            "name": "s2c_smw_pool_size",
+            "value": "2048"
+        },
+        {
+            "name": "single-cell-barcode",
+            "value": "16"
+        },
+        {
+            "name": "single-cell-count-introns",
+            "value": "false"
+        },
+        {
+            "name": "single-cell-global-umi",
+            "value": "false"
+        },
+        {
+            "name": "single-cell-type",
+            "value": "simple"
+        },
+        {
+            "name": "single-cell-umi",
+            "value": "8"
+        },
+        {
+            "name": "soft-read-trimmers",
+            "value": "polyg"
+        },
+        {
+            "name": "sort_buffer_size",
+            "value": "1048576"
+        },
+        {
+            "name": "stop-at-read",
+            "value": "0"
+        },
+        {
+            "name": "strip-input-qname-suffixes",
+            "value": "true"
+        },
+        {
+            "name": "sv-denovo-threshold",
+            "value": "20"
+        },
+        {
+            "name": "sv-enable-rrm-for-insertions-in-cancer-calling-modes",
+            "value": "true"
+        },
+        {
+            "name": "sv-enable-rrm-for-insertions-in-germline-calling-modes",
+            "value": "true"
+        },
+        {
+            "name": "sv-generate-evidence-bam",
+            "value": "false"
+        },
+        {
+            "name": "sv-graph-node-max-edge-count",
+            "value": "10"
+        },
+        {
+            "name": "sv-hyper-sensitivity",
+            "value": "false"
+        },
+        {
+            "name": "sv-min-candidate-spanning-count",
+            "value": "3"
+        },
+        {
+            "name": "sv-min-candidate-variant-size",
+            "value": "8"
+        },
+        {
+            "name": "sv-min-diploid-variant-score",
+            "value": "10"
+        },
+        {
+            "name": "sv-min-edge-observations",
+            "value": "3"
+        },
+        {
+            "name": "sv-min-pass-diploid-gt-score",
+            "value": "15"
+        },
+        {
+            "name": "sv-min-pass-diploid-variant-score",
+            "value": "20"
+        },
+        {
+            "name": "sv-min-pass-somatic-score",
+            "value": "30"
+        },
+        {
+            "name": "sv-min-scored-variant-size",
+            "value": "50"
+        },
+        {
+            "name": "sv-min-somatic-score",
+            "value": "10"
+        },
+        {
+            "name": "sv-mobile-element-sequences",
+            "value": "GGCCGGGCGCGGTGGCTCACGCCTGTAATCCCAGCACTTTGGGAGGCCGAGGCGGGCGGATCACGAGGTCAGGAGATCGAGACCATCCCGGCTAAAACGGTGAAACCCCGTCTCTACTAAAAATACAAAAAATTAGCCGGGCGTAGTGGCGGGCGCCTGTAGTCCCAGCTACTTGGGAGGCTGAGGCAGGAGAATGGCGTGAACCCGGGAGGCGGAGCTTGCAGTGAGCCGAGATCCCGCCACTGCACTCCAGCCTGGGCGACAGAGCGAGACTCCGTCTC GGCCGGGCGCGGTGGCTCACGCCTGTAATCCCAGCACTTTGGGAGGCCGAGGCGGGTGGATCATGAGGTCAGGAGATCGAGACCATCCTGGCTAACAAGGTGAAACCCCGTCTCTACTAAAAATACAAAAAATTAGCCGGGCGCGGTGGCGGGCGCCTGTAGTCCCAGCTACTCGGGAGGCTGAGGCAGGAGAATGGCGTGAACCCGGGAAGCGGAGCTTGCAGTGAGCCGAGATTGCGCCACTGCAGTCCGCAGTCCGGCCTGGGCGACAGAGCGAGACTCCGTCTC "
+        },
+        {
+            "name": "sv-rna-min-candidate-variant-size",
+            "value": "1000"
+        },
+        {
+            "name": "sv-use-overlap-pair-evidence",
+            "value": "false"
+        },
+        {
+            "name": "trim-disable-mapping",
+            "value": "false"
+        },
+        {
+            "name": "trim-filter-dummy-len",
+            "value": "10"
+        },
+        {
+            "name": "trim-filter-set-flag",
+            "value": "true"
+        },
+        {
+            "name": "trim-min-len-read1",
+            "value": "20"
+        },
+        {
+            "name": "trim-min-len-read2",
+            "value": "20"
+        },
+        {
+            "name": "trim-polyg-early-exit-threshold",
+            "value": "-500"
+        },
+        {
+            "name": "trim-polyg-g-score-r1-3prime",
+            "value": "15"
+        },
+        {
+            "name": "trim-polyg-g-score-r1-5prime",
+            "value": "0"
+        },
+        {
+            "name": "trim-polyg-g-score-r2-3prime",
+            "value": "15"
+        },
+        {
+            "name": "trim-polyg-g-score-r2-5prime",
+            "value": "0"
+        },
+        {
+            "name": "trim-polyg-kmer-len",
+            "value": "25"
+        },
+        {
+            "name": "trim-polyg-kmer-non-g",
+            "value": "2"
+        },
+        {
+            "name": "trim-polyg-min-trim-r1-3prime",
+            "value": "6"
+        },
+        {
+            "name": "trim-polyg-min-trim-r1-5prime",
+            "value": "6"
+        },
+        {
+            "name": "trim-polyg-min-trim-r2-3prime",
+            "value": "6"
+        },
+        {
+            "name": "trim-polyg-min-trim-r2-5prime",
+            "value": "6"
+        },
+        {
+            "name": "umi-base-representation-min-ratio",
+            "value": "0.5"
+        },
+        {
+            "name": "umi-correction-scheme",
+            "value": "lookup"
+        },
+        {
+            "name": "umi-correction-table",
+            "value": "umi_correction_table.txt"
+        },
+        {
+            "name": "umi-enable",
+            "value": "false"
+        },
+        {
+            "name": "umi-enable-contextual-corrections",
+            "value": "true"
+        },
+        {
+            "name": "umi-enable-duplex-merging",
+            "value": "true"
+        },
+        {
+            "name": "umi-enable-probability-model-merging",
+            "value": "false"
+        },
+        {
+            "name": "umi-enable-shift-corrections",
+            "value": "true"
+        },
+        {
+            "name": "umi-enable-trimming",
+            "value": "true"
+        },
+        {
+            "name": "umi-end-mask-length",
+            "value": "3"
+        },
+        {
+            "name": "umi-generate-bam-tags",
+            "value": "true"
+        },
+        {
+            "name": "umi-masked-base-qual",
+            "value": "1"
+        },
+        {
+            "name": "umi-max-base-quality",
+            "value": "63"
+        },
+        {
+            "name": "umi-mem-throttle-gb",
+            "value": "30"
+        },
+        {
+            "name": "umi-min-map-quality",
+            "value": "0"
+        },
+        {
+            "name": "umi-min-reads-per-region",
+            "value": "4096"
+        },
+        {
+            "name": "umi-min-supporting-reads",
+            "value": "2"
+        },
+        {
+            "name": "umi-padding",
+            "value": "A"
+        },
+        {
+            "name": "umi-preserve-input-tags",
+            "value": "false"
+        },
+        {
+            "name": "umi-probability-merging-duplex-merging-thres",
+            "value": "1"
+        },
+        {
+            "name": "umi-probability-merging-max-transition-ratio",
+            "value": "10000"
+        },
+        {
+            "name": "umi-probability-merging-min-isize-freq",
+            "value": "0.001"
+        },
+        {
+            "name": "umi-probability-merging-seq-error",
+            "value": "0.001"
+        },
+        {
+            "name": "umi-probability-merging-simplex-fuzzy-merging-thres",
+            "value": "1"
+        },
+        {
+            "name": "umi-probability-merging-simplex-merging-thres",
+            "value": "1"
+        },
+        {
+            "name": "umi-random-merge-factor",
+            "value": "2"
+        },
+        {
+            "name": "umi-read-minority-min-ratio",
+            "value": "0.5"
+        },
+        {
+            "name": "umi-soft-clip-ratio",
+            "value": "0.5"
+        },
+        {
+            "name": "umi-source",
+            "value": "qname"
+        },
+        {
+            "name": "umi-start-mask-length",
+            "value": "1"
+        },
+        {
+            "name": "umi-stat-estimation-max-fragment-count",
+            "value": "30"
+        },
+        {
+            "name": "umi-stat-estimation-max-fragment-size",
+            "value": "1000"
+        },
+        {
+            "name": "umi-stat-estimation-max-interval-number",
+            "value": "50"
+        },
+        {
+            "name": "umi-stat-estimation-min-probability-unique-fragment",
+            "value": "0.998"
+        },
+        {
+            "name": "umi-stat-estimation-umi-jumping-estimation-method",
+            "value": "simplex"
+        },
+        {
+            "name": "umi-trim-allowed-mismatches",
+            "value": "1"
+        },
+        {
+            "name": "umi-verbose-metrics",
+            "value": "false"
+        },
+        {
+            "name": "use-mock-config",
+            "value": "false"
+        },
+        {
+            "name": "vc-active-only",
+            "value": "false"
+        },
+        {
+            "name": "vc-decoy-contigs",
+            "value": "NC_007605 hs37d5 chrUn_KN707*v1_decoy chrUn_JTFH0100*v1_decoy KN707*.1 JTFH0100*.1 chrEBV CMV HBV HCV* HIV* KSHV HTLV* MCV SV40 HPV* "
+        },
+        {
+            "name": "vc-emit-ref-confidence",
+            "value": "NONE"
+        },
+        {
+            "name": "vc-emit-zero-coverage-intervals",
+            "value": "true"
+        },
+        {
+            "name": "vc-enable-basecall-filter",
+            "value": "false"
+        },
+        {
+            "name": "vc-enable-deterministic-run",
+            "value": "true"
+        },
+        {
+            "name": "vc-enable-hw-hmm",
+            "value": "true"
+        },
+        {
+            "name": "vc-enable-hw-hmm-dump-receiver-data",
+            "value": "false"
+        },
+        {
+            "name": "vc-enable-hw-hmm-dump-sender-data",
+            "value": "false"
+        },
+        {
+            "name": "vc-enable-hw-hmm-dump-worker-data",
+            "value": "false"
+        },
+        {
+            "name": "vc-enable-hw-smw",
+            "value": "true"
+        },
+        {
+            "name": "vc-enable-hw-smw-dump-receiver-data",
+            "value": "false"
+        },
+        {
+            "name": "vc-enable-hw-smw-dump-sender-data",
+            "value": "false"
+        },
+        {
+            "name": "vc-enable-hw-smw-dump-worker-data",
+            "value": "false"
+        },
+        {
+            "name": "vc-hw-hmm-timeout",
+            "value": "100000"
+        },
+        {
+            "name": "vc-limit-genomecov-output",
+            "value": "false"
+        },
+        {
+            "name": "vc-max-alternate-alleles",
+            "value": "6"
+        },
+        {
+            "name": "vc-max-haps-per-job",
+            "value": "2"
+        },
+        {
+            "name": "vc-sw-cell-width",
+            "value": "16"
+        },
+        {
+            "name": "vc-sw-instruction-set",
+            "value": "sse2"
+        },
+        {
+            "name": "vc-sw-mode",
+            "value": "0"
+        },
+        {
+            "name": "vqsr-lod-cutoff",
+            "value": "-5.0"
+        },
+        {
+            "name": "vqsr-num-gaussians",
+            "value": "8,2,4,2"
+        },
+        {
+            "name": "watchdog-active-timeout",
+            "value": "600"
+        },
+        {
+            "name": "watchdog-dump-processes",
+            "value": "true;"
+        },
+        {
+            "name": "watchdog-exit-on-hang",
+            "value": "true"
+        },
+        {
+            "name": "watchdog-freemem-threshold",
+            "value": "2GB"
+        },
+        {
+            "name": "watchdog-idle-timeout",
+            "value": "600"
+        },
+        {
+            "name": "watchdog-max-threads",
+            "value": "8388608"
+        },
+        {
+            "name": "watchdog-poll-interval",
+            "value": "1"
+        },
+        {
+            "name": "watchdog-resources-monitored",
+            "value": "THREADS IO MEMORY "
+        },
+        {
+            "name": "watchdog-verbose-logging",
+            "value": "true"
+        }
+    ],
+    "system": {
+        "dragen_version": "07.021.572.3.7.0-205-gbcf57830",
+        "nodename": "ussd-tst-drgn33.illumina.com",
+        "kernel_release": "3.10.0-1062.12.1.el7.x86_64"
+    }
+}
