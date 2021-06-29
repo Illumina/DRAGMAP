@@ -19,7 +19,7 @@ namespace dragenos {
 namespace align {
 
 typedef int            ScoreType;
-static const ScoreType INVALID_SCORE = -1;
+static const ScoreType INVALID_SCORE = std::numeric_limits<ScoreType>::min();
 static const ScoreType MAX_SCORE     = std::numeric_limits<ScoreType>::max();
 
 }  // namespace align

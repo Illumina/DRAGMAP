@@ -17,8 +17,11 @@
 
 #include <fstream>
 
+//#define TRACE_SEED_CHAINS
 //#define TRACE_ALIGNMENTS
 //#define TRACE_SMITH_WATERMAN
+//#define TRACE_SCORING
+//#define TRACE_VECTOR_SMITH_WATERMAN
 
 // set it to true to enable generation of mapper log files similar to those produced by the simulator
 #define DEBUG_FILES false
@@ -33,14 +36,18 @@ namespace common {
   else                 \
     (os)
 
+std::ofstream& alnResultLog();
 std::ofstream& chainLog();
 std::ofstream& rescueLog();
 std::ofstream& smithWatermanLog();
+std::ofstream& sWFetchLog();
 std::ofstream& sWSteerLog();
 
+#define DRAGEN_ALN_RESULT_LOG DRAGEN_LOG(::dragenos::common::alnResultLog())
 #define DRAGEN_CHAIN_LOG DRAGEN_LOG(::dragenos::common::chainLog())
 #define DRAGEN_RESCUE_LOG DRAGEN_LOG(::dragenos::common::rescueLog())
 #define DRAGEN_SMITH_WATERMAN_LOG DRAGEN_LOG(::dragenos::common::smithWatermanLog())
+#define DRAGEN_S_W_FETCH_LOG DRAGEN_LOG(::dragenos::common::sWFetchLog())
 #define DRAGEN_S_W_STEER_LOG DRAGEN_LOG(::dragenos::common::sWSteerLog())
 
 }  // namespace common

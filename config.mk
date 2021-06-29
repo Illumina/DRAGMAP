@@ -105,6 +105,7 @@ endif
 DRAGEN_THIRDPARTY?=$(DRAGEN_OS_ROOT_DIR)/thirdparty
 DRAGEN_SRC_DIR?=$(DRAGEN_OS_ROOT_DIR)/thirdparty/dragen/src
 DRAGEN_STUBS_DIR?=$(DRAGEN_OS_ROOT_DIR)/stubs/dragen/src
+SSW_SRC_DIR?=$(DRAGEN_OS_ROOT_DIR)/thirdparty/sswlib
 DRAGEN_OS_SRC_DIR?=$(DRAGEN_OS_ROOT_DIR)/src
 DRAGEN_OS_MAKE_DIR?=$(DRAGEN_OS_ROOT_DIR)/make
 DRAGEN_OS_TEST_DIR?=$(DRAGEN_OS_ROOT_DIR)/tests
@@ -123,10 +124,12 @@ BUILD:=$(DRAGEN_OS_BUILD_DIR)
 DRAGEN_OS_LIBS := common options bam fastq sequences io reference map align workflow
 
 ## List the libraries from dragen source tree in the order where they should be statically linked
-DRAGEN_LIBS := common/hash_generation host/dragen_api/sampling common
+DRAGEN_LIBS := common/hash_generation host/dragen_api/sampling common host/metrics
 
 ## List the libraries that pretend the dragen source tree libraries are being linked with rest of dragen source tree
 DRAGEN_STUB_LIBS := host/dragen_api host/metrics host/infra/linux
+
+SSW_LIBS := ssw
 
 integration_skipped?=
 ifdef integration_skipped
@@ -157,7 +160,8 @@ endif
 #CPPFLAGS += -I $(BAMTOOLS_INCLUDEDIR)
 CPPFLAGS += -I $(DRAGEN_THIRDPARTY)
 CPPFLAGS += -I $(DRAGEN_OS_SRC_DIR)/include
-CPPFLAGS += -I $(DRAGEN_SRC_DIR) -I $(DRAGEN_SRC_DIR)/common/public
+CPPFLAGS += -I $(DRAGEN_SRC_DIR) -I $(DRAGEN_SRC_DIR)/common/public  -I $(DRAGEN_SRC_DIR)/host/metrics/public
+CPPFLAGS += -I $(SSW_SRC_DIR)
 CPPFLAGS += -I $(DRAGEN_STUBS_DIR)/host/dragen_api -I $(DRAGEN_STUBS_DIR)/host/dragen_api/dbam 
 CPPFLAGS += -I $(DRAGEN_STUBS_DIR)/host/infra/public -I $(DRAGEN_STUBS_DIR)/host/metrics/public
 
@@ -187,7 +191,7 @@ else # non DEBUG
 #CPPFLAGS += -O3 -march=skylake-avx512 # same as above
 
 # this seems to be fastest for fastq parsing. mainly because it manages to put proper PSUBB instruction for subtracing q0 from qscore chars
-CPPFLAGS += -g -msse4.2 -O2 -ftree-vectorize -finline-functions -fpredictive-commoning -fgcse-after-reload -funswitch-loops -ftree-slp-vectorize -fvect-cost-model -fipa-cp-clone -ftree-phiprop
+CPPFLAGS += -Wfatal-errors -g -msse4.2 -O2 -ftree-vectorize -finline-functions -fpredictive-commoning -fgcse-after-reload -funswitch-loops -ftree-slp-vectorize -fvect-cost-model -fipa-cp-clone -ftree-phiprop
 
 # this seems slightly slower than above
 #CXXFLAGS += -g -mavx2 -O2 -ftree-vectorize -finline-functions -fpredictive-commoning -fgcse-after-reload -funswitch-loops -ftree-slp-vectorize -fvect-cost-model -fipa-cp-clone -ftree-phiprop

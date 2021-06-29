@@ -12,8 +12,10 @@
  **
  **/
 
-#include "map/ChainBuilder.hpp"
+#include <assert.h>
+
 #include "common/DragenLogger.hpp"
+#include "map/ChainBuilder.hpp"
 
 namespace dragenos {
 namespace map {
@@ -22,7 +24,7 @@ void ChainBuilder::addSeedPosition(
     const SeedPosition& seedPosition, const bool reverseComplement, const bool randomSample)
 {
 ///////////
-#ifdef DEBUG_LOG
+#ifdef TRACE_SEED_CHAINS
   std::cerr << "  ChainBuilder::addSeedPosition: seedPosition: " << std::hex << "0x" << std::uppercase
             << std::setw(9) << std::setfill('0') << seedPosition.getReferencePosition() << std::dec
             << std::endl;
@@ -33,8 +35,8 @@ void ChainBuilder::addSeedPosition(
   for (auto& seedChain : *this) {
     if (seedChain.accepts(seedPosition, reverseComplement)) {
 ///////////
-#ifdef DEBUG_LOG
-      std::cerr << "  Accepted by: " << seedChain << std::endl;
+#ifdef TRACE_SEED_CHAINS
+      std::cerr << seedPosition << "  Accepted by: " << seedChain << std::endl;
 #endif
       ///////////
       seedChain.addSeedPosition(seedPosition, randomSample);
@@ -43,9 +45,9 @@ void ChainBuilder::addSeedPosition(
       //return;
     }
 /////////
-#ifdef DEBUG_LOG
+#ifdef TRACE_SEED_CHAINS
     else {
-      std::cerr << "  Rejected by: " << seedChain << std::endl;
+      std::cerr << seedPosition << "  Rejected by: " << seedChain << std::endl;
     }
 #endif
     /////////
@@ -55,8 +57,8 @@ void ChainBuilder::addSeedPosition(
   }
   // none of the existing chains accept the seed at this position. add new chain with this seed
 /////////
-#ifdef DEBUG_LOG
-  std::cerr << "  None Accepted, formed its own chain " << std::endl;
+#ifdef TRACE_SEED_CHAINS
+  std::cerr << seedPosition << "  None Accepted, formed its own chain " << std::endl;
 #endif
   ///////////
   if (seedChains_.size() == seedChainCount_) {
@@ -80,50 +82,50 @@ void ChainBuilder::addSeedChain(const SeedChain& seedChain)
 
 void ChainBuilder::filterChains()
 {
-  /*
-#ifdef DEBUG_LOG
-  std::cerr << "\n------------------------ ChainBuilder::filterChains()"<<std::endl;
+#ifdef TRACE_SEED_CHAINS
+  std::cerr << "\n------------------------ ChainBuilder::filterChains()" << std::endl;
 #endif
 
-  SeedChain* superior = nullptr;
   SeedChain* inferior = nullptr;
 
-  for (int i = 0; i < seedChainCount_; ++i)
-  {
-    if(seedChains_[i].isFiltered()) continue;
-    for (int j = i+1; j < seedChainCount_; ++j)
-    {
-      if(seedChains_[j].isFiltered()) continue;
-      if(seedChains_[i].getReadSpanLength() > seedChains_[j].getReadSpanLength())
-      {
-        superior = &seedChains_[i];
-        inferior = &seedChains_[j];
-      }
-      else
-      {
-        superior = &seedChains_[j];
-        inferior = &seedChains_[i];
-      }
-
-      double filterThresh = chainFilterRatio_ * static_cast<float>(inferior->getReadSpanLength()) + chainFilterConstant_;
-#ifdef DEBUG_LOG
-      std::cerr << "superior:"<<*superior<<"superior->getReadSpanLength():"<<superior->getReadSpanLength()<<"\n";
-      std::cerr << "inferior:"<<*inferior<<"inferior->getReadSpanLength():"<<inferior->getReadSpanLength()<<std::endl;
-      std::cerr << "superior->size():"<<superior->size()<<"\n";
-      std::cerr << "chainFilterRatio_:"<<chainFilterRatio_<<"\n";
-      std::cerr << "inferior->getReadSpanLength():"<<inferior->getReadSpanLength()<<"\n";
-      std::cerr << "chainFilterConstant_:"<<chainFilterConstant_<<"\n";
-      std::cerr << "(chainFilterRatio_ * (inferior->getReadSpanLength())) + chainFilterConstant_):"<<filterThresh<<std::endl;
-#endif
-      if (superior->size() >= filterThresh) {
-        double overlapThresh = inferior->getReadSpanLength() * 0.25;
-        if(superior->firstReadBase() - overlapThresh <= inferior->firstReadBase()
-           and superior->lastReadBase() + overlapThresh >= inferior->lastReadBase())
-          inferior->setFiltered(true);
-      }
+  int maxcov_beg   = std::numeric_limits<int>::max();
+  int maxcov_end   = std::numeric_limits<int>::min();
+  int max_coverage = 0;
+  for (int i = 0; i < seedChainCount_; ++i) {
+    if (seedChains_[i].getReadCovLength() > max_coverage) {
+      max_coverage = seedChains_[i].getReadCovLength();
+      maxcov_beg   = seedChains_[i].firstReadBase();
+      maxcov_end   = seedChains_[i].lastReadBase();
     }
   }
-*/
+
+  assert(!seedChainCount_ || maxcov_beg != std::numeric_limits<int>::max());
+  assert(!seedChainCount_ || maxcov_end != std::numeric_limits<int>::min());
+
+  for (int j = 0; j < seedChainCount_; ++j) {
+    inferior = &seedChains_[j];
+
+    int chain_filt_ratio = int(chainFilterRatio_ * (1 << 8));
+    int cov_thresh       = (chain_filt_ratio * inferior->getReadCovLength()) >> 8;  // + chainFilterConstant_;
+    {
+      int len_div4_v = inferior->getReadCovLength() >> 2;
+      if (maxcov_beg <= inferior->firstReadBase() + len_div4_v &&
+          maxcov_end >= inferior->lastReadBase() - len_div4_v && max_coverage >= cov_thresh &&
+          !inferior->isExtra() && !inferior->hasOnlyRandomSamples()) {
+        inferior->setFiltered(true);
+      }
+#ifdef TRACE_SEED_CHAINS
+      std::cerr <<  // "superior:" << *superior << "\n"
+          "inferior:" << *inferior << std::endl;
+      std::cerr << "chain_length=" << inferior->getReadCovLength() << ",len_div4_v=" << len_div4_v
+                << ",max_coverage=" << max_coverage << ",cov_thresh=" << cov_thresh
+                << ",maxcov_beg=" << maxcov_beg << ",maxcov_end=" << maxcov_end
+                << ",map_cfg.chain_filt_ratio=" << chain_filt_ratio
+                << " chainFilterConstant_:" << chainFilterConstant_ << std::endl;
+#endif
+    }
+  }
+
   for (const SeedChain& chain : *this) {
     DRAGEN_CHAIN_LOG << chain << std::endl;
   }

@@ -55,6 +55,8 @@ include $(wildcard $(BUILD)/testRunner.d)
 # side effects:
 #  - builds 'libraries' variable required for linking programs, integration and system tests
 #  - builds and executes unit and integration tests for each librarry
+ssw_lib_dirs_aux:=$(SSW_LIBS)
+include $(foreach lib_dir, $(SSW_LIBS), $(DRAGEN_OS_MAKE_DIR)/ssw_lib.mk)
 dragen_stub_lib_dirs_aux:=$(DRAGEN_STUB_LIBS)
 include $(foreach lib_dir, $(DRAGEN_STUB_LIBS), $(DRAGEN_OS_MAKE_DIR)/dragen_stub_lib.mk)
 dragen_lib_dirs_aux:=$(DRAGEN_LIBS)

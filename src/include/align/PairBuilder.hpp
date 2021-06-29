@@ -39,6 +39,7 @@ class PairBuilder {
   const SimilarityScores& similarity_;
   const int               alnMinScore_;
   const int               aln_cfg_unpaired_pen_;
+  const int               aln_cfg_xs_pair_penalty_;
   const int               aln_cfg_sec_aligns_;
   const int               aln_cfg_sec_score_delta_;
   const int               aln_cfg_sec_phred_delta_;
@@ -57,6 +58,7 @@ public:
       const SimilarityScores& similarity,
       const int               alnMinScore,
       const uint32_t          aln_cfg_unpaired_pen,
+      const int               aln_cfg_xs_pair_penalty,
       const int               aln_cfg_sec_aligns,
       const int               aln_cfg_sec_score_delta,
       const int               aln_cfg_sec_phred_delta,
@@ -65,6 +67,7 @@ public:
     : similarity_(similarity),
       alnMinScore_(alnMinScore),
       aln_cfg_unpaired_pen_(aln_cfg_unpaired_pen),
+      aln_cfg_xs_pair_penalty_(aln_cfg_xs_pair_penalty),
       aln_cfg_sec_aligns_(aln_cfg_sec_aligns),
       aln_cfg_sec_score_delta_(aln_cfg_sec_score_delta),
       aln_cfg_sec_phred_delta_(aln_cfg_sec_phred_delta),
@@ -87,9 +90,11 @@ public:
   int computePairPenalty(
       const InsertSizeParameters& insertSizeParameters,
       const ReadPair&             readPair,
-      const map::SeedChain*       c1,
-      const map::SeedChain*       c2,
-      bool                        properPair) const;
+      const Alignment*            a1,
+      const Alignment*            a2,
+      const bool                  properPair,
+      int&                        insert_len,
+      int&                        insert_diff) const;
 
   /**
    * \brief     Find all secondary alignments within config parameters. Return false iff sec-aligns is
@@ -104,8 +109,8 @@ public:
       int                                  readIdx,
       StoreOp                              store) const
   {
-    const double    m2a_scale      = mapq2aln(similarity_.getSnpCost(), averageReadLength);
-    const ScoreType scaled_max_pen = m2a_scale * aln_cfg_sec_phred_delta_;  //27;
+    const int       m2a_scale      = mapq2aln(similarity_.getSnpCost(), averageReadLength);
+    const ScoreType scaled_max_pen = (m2a_scale * aln_cfg_sec_phred_delta_) >> 10;  //27;
     const ScoreType sec_aln_delta  = std::max(scaled_max_pen, aln_cfg_sec_score_delta_);
 
     reported_.clear();
@@ -113,8 +118,11 @@ public:
     int secAligns = aln_cfg_sec_aligns_;
 
     for (auto& p : pairs) {
-      if (alnMinScore_ <= p.at(readIdx).getScore() && sec_aln_delta >= (best->getScore() - p.getScore()) &&
-          !best->at(readIdx).isDuplicate(p.at(readIdx)) && best->at(readIdx).isOverlap(p.at(readIdx)) &&
+      if (/*(!best->isProperPair() || p.isProperPair()) && */ !p.cat(readIdx).isUnmapped() &&
+          alnMinScore_ <= p.at(readIdx).getScore() && sec_aln_delta >= (best->getScore() - p.getScore()) &&
+          !best->at(readIdx).isDuplicate(p.at(readIdx)) &&
+          // D0004:230:H08B1ADXX:1:1105:18508:35343          (p.at(readIdx).isUnmapped() ||
+          // best->at(readIdx).isOverlap(p.at(readIdx))) &&
           !reported_[std::distance(&unpaired.front(), &p.cat(readIdx))]) {
         if (!secAligns) {
           return !aln_cfg_sec_aligns_hard_;
@@ -137,21 +145,24 @@ private:
       int                                  readIdx,
       int&                                 sub_count) const;
 
-  ScoreType findSecondBestScore(
+  AlignmentPairs::const_iterator findSecondBestScore(
       const int                            averageReadLength,
       const AlignmentPairs&                pairs,
       const UnpairedAlignments&            unpairedAlignments,
       const AlignmentPairs::const_iterator best,
       int                                  readIdx,
       int&                                 sub_count,
-      ScoreType&                           secondBestPeScore) const;
+      ScoreType&                           secondBestPeScore,
+      ScoreType&                           secondBestSeScore) const;
 
   void updateEndMapq(
-      const int                 averageReadLength,
-      AlignmentPairs&           pairs,
-      const UnpairedAlignments& unpairedAlignments,
-      AlignmentPairs::iterator  best,
-      const int                 readIdx) const;
+      const int                averageReadLength,
+      AlignmentPairs::iterator best,
+      const int                readIdx,
+      int                      sub_count,
+      ScoreType                sub_pair_score_v,
+      const ScoreType          secondBestSeScore[],
+      const ScoreType          xs[]) const;
 };
 
 }  // namespace align

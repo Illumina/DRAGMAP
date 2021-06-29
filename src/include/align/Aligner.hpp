@@ -54,7 +54,9 @@ public:
       const int                      gapExtend,
       const int                      unclipScore,
       const int                      alnMinScore,
-      const uint32_t                 alignerUnpairedPen);
+      const uint32_t                 alignerUnpairedPen,
+      const double                   aln_cfg_filter_len_ratio,
+      const bool                     vectorizedSW);
   typedef sequences::Read     Read;
   typedef sequences::ReadPair ReadPair;
   typedef align::Alignment    Alignment;
@@ -77,6 +79,7 @@ public:
   /// generate dummy alignments consistent with the seed chains
   void generateDummyAlignments(
       const Read& read, const map::ChainBuilder& chainBuilder, Alignments& alignments) const;
+  void deFilterChain(const Read& read, map::SeedChain& seedChain, Alignment& alignment);
   /**
    ** \brief Accepts query and reference sequences of identical length and compares
    ** corresponding bases one by one.
@@ -133,6 +136,7 @@ private:
   const reference::ReferenceDir& referenceDir_;
   const bool                     mapOnly_;
   const int                      swAll_;
+  const bool                     vectorizedSW_;
   /// read the hashtable config data and throw on error
   //std::vector<char> getHashtableConfigData(const boost::filesystem::path referenceDir) const;
   /// maps hashtable data and throw on error
@@ -149,6 +153,7 @@ private:
   const ScoreType           alnMinScore_;
   const int                 aln_cfg_unpaired_pen_;
   SmithWaterman             smithWaterman_;
+  VectorSmithWaterman       vectorSmithWaterman_;
   std::array<Alignments, 2> unpairedAlignments_;
   AlignmentGenerator        alignmentGenerator_;
 
@@ -187,6 +192,7 @@ private:
       Alignment&                  anchoredAlignment,
       const AlignmentRescue       alignmentRescue,
       AlignmentPairs&             alignmentPairs);
+  void runSmithWatermanWorthy(const Read& read, map::ChainBuilder& chainBuilder, Alignments& alignments);
 };
 
 }  // namespace align

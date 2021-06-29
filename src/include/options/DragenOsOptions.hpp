@@ -18,6 +18,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/regex.hpp>
 #include <string>
+#include <thread>
 
 #include "common/Program.hpp"
 #include "common/hash_generation/gen_hash_table.h"
@@ -52,6 +53,7 @@ public:
   bool mapOnly_;
   int  swAll_ = 0;  // Aligner.sw-all
 
+  std::string methodSmithWaterman_   = "mengyao";  // "mengyao" : vectorized SW library /   "dragen" for legacy code
   bool        samplingEnabled_       = true;  // sampling-enabled
   double      alignerPeMeanInsert_   = 0.0;   // Aligner.pe-stat-mean-insert
   double      alignerPeStddevInsert_ = 0.0;   // Aligner.pe-stat-stddev-insert
@@ -65,21 +67,26 @@ public:
   uint8_t  peStatsIntervalDelay_    = 5;       // pe-stats-interval-delay
   bool     peStatsContinuousUpdate_ = false;   // pe-stats-continuous-update
   bool     peStatsUpdateLogOnly_    = false;   // pe-stats-update-log-only
-  uint32_t alignerPeOrientation_    = 0;       // Aligner.pe-orientation
-  double   alignerResqueSigmas_     = 0;       //2.5;     // Aligner.rescue-sigmas
-  double   alignerResqueCeilFactor_ = 3.0;     // Aligner.rescue-ceil-factor
-  uint32_t alignerResqueMinIns_     = 0;       // Aligner.rescue-min-ins
-  uint32_t alignerResqueMaxIns_     = 0;       // Aligner.rescue-max-ins
+
+  double mapperFilterLenRatio_ = 4.0;  // Mapper.filter-len-ratio
+
+  uint32_t alignerPeOrientation_    = 0;    // Aligner.pe-orientation
+  double   alignerResqueSigmas_     = 0;    //2.5;     // Aligner.rescue-sigmas
+  double   alignerResqueCeilFactor_ = 3.0;  // Aligner.rescue-ceil-factor
+  uint32_t alignerResqueMinIns_     = 0;    // Aligner.rescue-min-ins
+  uint32_t alignerResqueMaxIns_     = 0;    // Aligner.rescue-max-ins
 
   uint32_t alignerMapqMinLen_  = 50;  // Aligner.mapq-min-len
   uint32_t alignerMapqMax_     = 60;  // Aligner.mapq-max
   uint32_t alignerUnpairedPen_ = 80;  // Aligner.unpaired-pen
+  int      alignerXsPairPen_   = 25;  // Aligner.xs-pair-penalty
 
   int  alignerSecAligns_     = 0;      // Aligner.sec-aligns
   int  alignerSecScoreDelta_ = 0;      // Aligner.sec-score-delta
   int  alignerSecPhredDelta_ = 0;      // Aligner.sec-phred-delta
   bool alignerSecAlignsHard_ = false;  // Aligner.sec-aligns-hard
-
+  int  mapperNumThreads_ =
+      0;  // Maximum worker threads for map /align. If not defined, then use maximum on system.
   const int matchScore_       = 1;
   const int mismatchScore_    = -4;
   const int gapExtendPenalty_ = 1;
@@ -139,18 +146,9 @@ public:
   // Memory limit (hash table + reference), units B|KB|MB|GB.  When set to 0, automatically
   // calculated by the host software - 32GB for the whole human genome
   std::string htMemLimit_ = "0GB";
-  std::string htAltLiftover_;
-  bool        htAltAwareValidate_ = true;
+
   // Path to decoys file (FASTA format) - defaults to FASTA in /opt/edico/liftover
   std::string htDecoys_;
-  // Don't include any decoys when building hash table
-  bool htSuppressDecoys_ = false;
-  // Population based alternate contigs file (FASTA format)
-  std::string htPopAltContigs_;
-  // Population based SAM format liftover file of alternate contigs in reference
-  std::string htPopAltLiftover_;
-  // Population based SNPs file (VCF format)
-  std::string htPopSnps_;
 
   std::string htMaskBed_;  //--ht-mask-bed_
 
@@ -187,13 +185,6 @@ public:
   double htExtRecCost_ = 4.0;
   // Maximum seeds populated at multi-base codes
   int htMaxMultiBaseSeeds_ = 0;
-
-  /// Return whether to try to autodetect which reference is being used
-  bool autodetectReference_ = true;
-
-  bool autodetectReferenceValidate_ = false;
-  // Directory with .autodetect.tsv config files for reference autodetection
-  std::string autodetectReferenceDir_;
 };
 
 }  // namespace options

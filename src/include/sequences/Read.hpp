@@ -107,6 +107,8 @@ public:
     std::copy(read.getQualities().begin(), read.getQualities().end(), qualities);
   }
 
+  short getReadLen() const { return readLen_; }
+
   std::size_t getByteSize() const { return sizeof(SerializedRead) + nameLen_ + readLen_ * 2; }
 
   static std::size_t getByteSize(const Read& read)

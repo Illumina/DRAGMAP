@@ -44,7 +44,7 @@ struct AlignmentHeader {
     SUPPLEMENTARY_ALIGNMENT         = 0x800
   };
 
-  AlignmentHeader(FlagType flags = -1) : flags_(flags) {}
+  AlignmentHeader(FlagType flags = -1, ScoreType score = -1) : score_(score), flags_(flags) {}
 
   ScoreType score_             = INVALID_SCORE;
   int       mismatches_        = -1;
@@ -139,7 +139,7 @@ struct AlignmentHeader {
  **/
 class Alignment : public AlignmentHeader {
 public:
-  Alignment(FlagType flags = 0) : AlignmentHeader(flags) {}
+  Alignment(FlagType flags = 0, ScoreType score = -1) : AlignmentHeader(flags, score) {}
 
   const Cigar& getCigar() const { return cigar_; }
   Cigar&       cigar() { return cigar_; }
@@ -201,17 +201,22 @@ public:
 
   bool isDuplicate(const Alignment& other) const
   {
-    if (isReverseComplement() == other.isReverseComplement() &&
-        (getUnclippedStartPosition() == other.getUnclippedStartPosition() ||
-         getUnclippedEndPosition() == other.getUnclippedEndPosition())) {
-      //      std::cerr << "duplicate:" << " our:" << *this << " other:" << other << std::endl;
+    if (isUnmapped() == other.isUnmapped() && isReverseComplement() == other.isReverseComplement() &&
+        getReference() == other.getReference() &&
+        ((getCigar().countStartClips() == other.getCigar().countStartClips() &&
+          getPosition() == other.getPosition()) ||
+         (getCigar().countEndClips() == other.getCigar().countEndClips() &&
+          getEndPosition() == other.getEndPosition()))) {
+      //            std::cerr << "duplicate:" << " our:" << *this << " other:" << other << std::endl;
       return true;
     }
+    //    std::cerr << "no duplicate:" << " our:" << *this << " other:" << other << std::endl;
     return false;
   }
 
   bool isOverlap(const Alignment& other) const
   {
+    assert(!other.getCigar().empty());
     const int ourStartClips   = getCigar().countStartClips();
     const int theirStartClips = other.isReverseComplement() != isReverseComplement()
                                     ? other.getCigar().countEndClips()
@@ -222,18 +227,22 @@ public:
     const int overlap = std::min(ourStartClips + ourClippedLength, theirStartClips + theirClippedLength) -
                         std::max(ourStartClips, theirStartClips);
 
-    if (overlap >= int((std::min(ourClippedLength, theirClippedLength) + 1) / 2)) {
-      //      std::cerr << "overlap:" << overlap << " our:" << *this << " other:" << other << std::endl;
+    if (overlap * 2 >= int((std::min(ourClippedLength, theirClippedLength)))) {
+      //            std::cerr << "overlap:" << overlap << " our:" << *this << " other:" << other << std::endl;
       return true;
     } else {
-      //      std::cerr << "no overlap:" << overlap << " our:" << *this << " other:" << other << std::endl;
+      //            std::cerr << "no overlap:" << overlap << " our:" << *this << " other:" << other << std::endl;
     }
 
     return false;
   }
 
+  bool reverse() const { return isReverseComplement(); }
+
   void             setSa(const Alignment* sa) { sa_ = sa; }
   const Alignment* getSa() const { return sa_; }
+
+  short getNm() const { return getMismatchCount(); }
 
 private:
   Cigar            cigar_;
@@ -246,8 +255,9 @@ private:
   {
     return os << "Alignment(" << aln.flags_ << "f," << aln.score_ << "s," << aln.potentialScore_ << "ps,"
               << aln.mapq_ << "mq," << aln.getReference() << ":" << aln.getPosition()
-              << (aln.isReverseComplement() ? "r," : "f,") << "-" << aln.getNextReference() << ":"
-              << aln.getNextPosition() << (aln.isReverseComplementNextSegment() ? "r," : "f,") << aln.cigar_
+              << (aln.isReverseComplement() ? "r" : "f") << (aln.isUnmapped() ? "u," : ",") << "-"
+              << aln.getNextReference() << ":" << aln.getNextPosition()
+              << (aln.isReverseComplementNextSegment() ? "r," : "f,") << aln.cigar_
               << (aln.perfect_ ? "perf" : "") << ")";
   }
 
@@ -391,11 +401,11 @@ public:
   AlignmentPair(
       Alignment&            unmapped1,
       Alignment&            a2,
-      const map::SeedChain& s2,
+      const map::SeedChain* s2,
       ScoreType             score,
       ScoreType             potentialScore)
     : alignments_{&unmapped1, &a2},
-      seedChains_{0, &s2},
+      seedChains_{0, s2},
       score_(score),
       potentialScore_(potentialScore),
       properPair_(false)
@@ -404,12 +414,12 @@ public:
 
   AlignmentPair(
       Alignment&            a1,
-      const map::SeedChain& s1,
+      const map::SeedChain* s1,
       Alignment&            unmapped2,
       ScoreType             score,
       ScoreType             potentialScore)
     : alignments_{&a1, &unmapped2},
-      seedChains_{&s1, 0},
+      seedChains_{s1, 0},
       score_(score),
       potentialScore_(potentialScore),
       properPair_(false)

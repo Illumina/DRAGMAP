@@ -28,7 +28,7 @@ class DualFastq2SamWorkflow {
   // IMPORTANT: this has to divide INIT_INTERVAL_SIZE without remainder. Else the whole insert
   // size stats detection will hang because it depends on processing alignment results exactly
   // after sending INIT_INTERVAL_SIZE into the aligner.
-  static const int RECORDS_AT_A_TIME_ = 1000;
+  static const int RECORDS_AT_A_TIME_ = 100000;
 
   // ensure FIFO
   int blockToStart_          = 0;
@@ -49,7 +49,8 @@ public:
   {
   }
 
-  void parseDualFastq(std::ostream& os, std::ostream& insertSizeDistributionLogStream);
+  void parseDualFastq(
+      std::ostream& os, std::ostream& insertSizeDistributionLogStream, std::ostream& mappingMetricsLogStream);
 
 private:
   align::InsertSizeParameters requestInsertSizeInfo(
@@ -69,19 +70,21 @@ private:
   //    const align::InsertSizeDistribution& insertSizeDistribution,
   //    std::istream& inputR1, std::istream& inputR2, align::Aligner& aligner, std::ostream& output);
   void readBlockThread(
-      const int                  ourBlock,
-      int&                       r1Records,
-      std::vector<char>&         r1Block,
-      fastq::FastqNRecordReader& r1Reader,
-      int&                       r2Records,
-      std::vector<char>&         r2Block,
-      fastq::FastqNRecordReader& r2Reader);
+      common::ThreadPool::lock_type& lock,
+      const int                      ourBlock,
+      int&                           r1Records,
+      std::vector<char>&             r1Block,
+      fastq::FastqNRecordReader&     r1Reader,
+      int&                           r2Records,
+      std::vector<char>&             r2Block,
+      fastq::FastqNRecordReader&     r2Reader);
 
   void parseDualFastq(
       std::istream& r1Stream,
       std::istream& r2Stream,
       std::ostream& os,
-      std::ostream& insertSizeDistributionLogStream);
+      std::ostream& insertSizeDistributionLogStream,
+      std::ostream& mappingMetricsLogStream);
 };
 
 }  // namespace workflow

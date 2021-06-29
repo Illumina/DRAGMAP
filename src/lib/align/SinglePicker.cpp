@@ -64,7 +64,7 @@ Alignments::iterator SinglePicker::findSupplementary(
   Alignments::iterator ret = alignments.end();
   for (Alignments::iterator it = alignments.begin(); alignments.end() != it; ++it) {
     if ((alignments.end() == ret || ret->getScore() < it->getScore()) && !primary->isDuplicate(*it) &&
-        !primary->isOverlap(*it)) {
+        (!it->isUnmapped() && !primary->isOverlap(*it))) {
       ret = it;
     }
   }
@@ -94,9 +94,14 @@ void SinglePicker::updateMapq(const int readLength, Alignments& alignments, Alig
       best->getScore(),
       std::max(alnMinScore_, secondBestScore),
       std::max(aln_cfg_mapq_min_len_, readLength));
-  const MapqType sub_mapq_pen_v = sub_count ? 3.0 * std::log2(sub_count) : 0;
-  // std::cerr << "sub_mapq_pen_v:" << sub_mapq_pen_v << std::endl;
-  best->setMapq(a2m_mapq - sub_mapq_pen_v);
+  const int      sub_count_log2 = log2_simple(sub_count);
+  const MapqType sub_mapq_pen_v = sub_count ? (3 * sub_count_log2) : 0;
+#ifdef TRACE_SCORING
+  std::cerr << "[SCORING]\t"
+            << "r" << 0 << " a2m_mapq=" << a2m_mapq << " sub_count=" << sub_count
+            << " sub_count_log2=" << sub_count_log2 << " sub_mapq_pen_v=" << sub_mapq_pen_v << std::endl;
+#endif  // TRACE_SCORING
+  best->setMapq(a2m_mapq - (sub_mapq_pen_v >> 7));
   const ScoreType xs = secondBestScore >= alnMinScore_ ? secondBestScore : INVALID_SCORE;
   best->setXs(xs);
 }

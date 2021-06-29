@@ -18,6 +18,7 @@
 #include <math.h>
 
 #include "align/Score.hpp"
+#include "common/DragenLogger.hpp"
 
 namespace dragenos {
 namespace align {
@@ -28,7 +29,8 @@ static const MapqType HW_MAPQ_MAX = 250;
 
 //  static const double MAPQ_COEFF = 20.8;
 //  static const double MAPQ_COEFF = 88.28125;
-static const double MAPQ_COEFF = 38912 >> 8;  //152;
+static const double MAPQ_COEFF   = 38912 >> 8;  //152;
+static const double MAPQ_COEFF_I = 38912;       //152;
 //  static const double MAPQ_COEFF = 139.376;
 //  static const double MAPQ_COEFF = 99.27;
 //
@@ -38,7 +40,12 @@ inline double mapqCoeffScaled(ScoreType snpCost)
   return MAPQ_COEFF * (5.0 / snpCost);
 }
 
-inline int our_log2(const int d)
+inline int mapqCoeffScaledI(ScoreType snpCost)
+{
+  return MAPQ_COEFF_I * 5 / snpCost;
+}
+
+inline int log2_approx(const int x)
 {
   static const int log2_approx_c[] = {
       0b0000000, 0b0000001, 0b0000011, 0b0000100, 0b0000110, 0b0000111, 0b0001000, 0b0001010, 0b0001011,
@@ -57,13 +64,6 @@ inline int our_log2(const int d)
       0b1111000, 0b1111001, 0b1111001, 0b1111010, 0b1111011, 0b1111100, 0b1111100, 0b1111101, 0b1111110,
       0b1111111, 0b1111111};
 
-  // Determining mapper hardware’s approximation for log2(X):
-  // X could be an integer, fixed, or floating point value.
-  // Computations here assume floating point, whereas HW uses a lookup table and fixed point math.
-  // But they should match exactly.
-
-  int x = d;
-
   // Can’t take log of zero.  HW can detect zero input and decide what to do; using a zero result is common.
   //  if (!x) {
   //    return 0;
@@ -71,39 +71,47 @@ inline int our_log2(const int d)
 
   // Find the integer portion of the log.
   // HW does this by detecting the position of the most significant ‘1’ bit.
-  int logInt = log2(x);  //floor(log2(x));
+  int logInt = 0;
+  for (int tmp = x; tmp >>= 1; ++logInt)
+    ;
 
   // Normalize X into [1,2).  HW does this by bit-shifting.
-  double norm = int(double(x) * 128.0) >> logInt;
+  int norm = (x << 7) >> logInt;
 
   // Truncate to 7 fractional bits.
   // (Also practical to round to 7 bits, but I don’t think HW does this anywhere.)
   // These 7 fractional bits are the input to HW’s lookup table.
-  int normTrunc = int(norm * 128.0) / 128.0;
-
   // High-precision log of the truncated normalized value, within [0,1)
-  int logFrac = log2_approx_c[normTrunc & 0x7f];
+  int logFrac = log2_approx_c[norm & 0x7f];
   // Round to 7 fractional bits.  These 7 bits are the output of HW’s lookup table.
-  double roundFrac = int(logFrac * 128.0) / 128.0;
   // Combine integer and fractional portions
-  return (logInt << 7) + roundFrac;
+  return (logInt << 7) + logFrac;
+}
+
+inline int log2_simple(int x)
+{
+  int logInt = 0;
+  for (int tmp = x; tmp >>= 1; ++logInt)
+    ;
+
+  //  -- Fractional portion of log2 approximation: 7 bits below the most significant bit
+  const int count_log_shift_v = ((x << 7) >> logInt) & 0x7f;
+  const int sub_count_log2    = (logInt << 7) | count_log_shift_v;
+
+  return sub_count_log2;
 }
 
 inline MapqType aln2mapq(ScoreType snpCost, const double read_len_avg)
 {
-  const int log2_length = our_log2(read_len_avg);
-  //  const int log2_length = log2(readLength) * (1 << 7);
-  //  std::cerr << "log2_length:" << log2_length << std::endl;
-  //  const double aln2mapq = mapqCoeffScaled  / pow(log((double) (readLength)) / log(2), 2);
-  const double aln2mapq = mapqCoeffScaled(snpCost) / ((log2_length * log2_length) >> 7);
-  //  std::cerr << "aln2mapq:" << aln2mapq << std::endl;
+  const int    log2_length = log2_approx(read_len_avg);
+  const double aln2mapq    = mapqCoeffScaled(snpCost) / ((log2_length * log2_length) >> 7);
   return aln2mapq * (1 << 20);
-  //  return aln2mapq * (1 << 14);
 }
 
-inline double mapq2aln(ScoreType snpCost, const double readLength)
+inline int mapq2aln(ScoreType snpCost, const double readLength)
 {
-  const double mapq2aln = pow(log(readLength) / log(2), 2) / mapqCoeffScaled(snpCost);
+  const int log2_length = log2_approx(readLength);
+  const int mapq2aln    = (log2_length * log2_length / (mapqCoeffScaledI(snpCost) >> 4));
   return mapq2aln;
 }
 
@@ -121,6 +129,12 @@ inline MapqType computeMapq(ScoreType snpCost, const ScoreType as, const ScoreTy
   //  const MapqType mapq = ((s1 - s2) * aln2mapq(snpCost, n1)) >> 7;  // >> 13;
   const int      a2m_scale = aln2mapq(snpCost, n1);
   const MapqType mapq      = ((s1 - s2) * a2m_scale) >> 13;
+
+#ifdef TRACE_SCORING
+  std::cerr << "[SCORING]\t"
+            << "s1:" << s1 << " s2:" << s2 << " n1:" << n1 << " aln2mapq(n1):" << aln2mapq(snpCost, n1)
+            << " a2m_scale:" << a2m_scale << " mapq:" << mapq << std::endl;
+#endif  // TRACE_SCORING
 
   //    std::cerr << "s1:" << s1 << " s2:" << s2 << " n1:" << n1 << " aln2mapq(n1):" << aln2mapq(snpCost, n1) <<
   ////    " a2m_over:" << ((s1 - s2) * aln2mapq(snpCost, n1) > MAPQ_MAX) << -- wrong and confusing

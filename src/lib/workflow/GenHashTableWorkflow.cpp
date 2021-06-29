@@ -24,23 +24,11 @@
 //#include <boost/filesystem.hpp>
 //
 #include "common/Debug.hpp"
-//#include "common/Threads.hpp"
-//#include "align/Aligner.hpp"
-//#include "align/InsertSizeDistribution.hpp"
-//#include "bam/Tokenizer.hpp"
-//#include "bam/BamBlockReader.hpp"
-//#include "io/Bam2ReadTransformer.hpp"
-//#include "fastq/Tokenizer.hpp"
-//#include "fastq/FastqBlockReader.hpp"
-//#include "io/Fastq2ReadTransformer.hpp"
 #include "options/DragenOsOptions.hpp"
-//#include "reference/ReferenceDir.hpp"
-//#include "align/Sam.hpp"
 //
-#include "workflow/GenHashTableWorkflow.hpp"
-//#include "workflow/DualFastq2SamWorkflow.hpp"
 #include "common/hash_generation/gen_hash_table.h"
 #include "common/hash_generation/hash_table_compress.h"
+#include "workflow/GenHashTableWorkflow.hpp"
 
 #include "common/public/linux_utils.hpp"
 
@@ -57,25 +45,17 @@ std::string GetFullPath(const std::string& p)
 /// reference.
 bool ReferenceAutoDetectValidate(const options::DragenOsOptions& opts)
 {
-  // This only applies if we are running the reference autodetect
-  if (!opts.autodetectReference_) {
-    return false;
-  }
-  return opts.autodetectReferenceValidate_;
+  return false;
 }
 
 /// Get the directory that has the reference autodetection config files.
 std::string GetReferenceAutoDetectDir(const options::DragenOsOptions& opts)
 {
-  if (opts.exists("autodetect-reference-dir")) {
-    return opts.autodetectReferenceDir_;
-  } else {
-    // Always get the path relative to the build directory
-    std::string       dir;
-    const std::string autodetectDir = "reference_autodetect/";
-    getBuildPath(dir, autodetectDir);
-    return dir;
-  }
+  // Always get the path relative to the build directory
+  std::string       dir;
+  const std::string autodetectDir = "reference_autodetect/";
+  getBuildPath(dir, autodetectDir);
+  return dir;
 }
 
 //-------------------------------------------------------------------------------swhitmore
@@ -112,29 +92,11 @@ void SetBuildHashTableOptions(
   std::string ref  = GetFullPath(opts.htReference_);
   config->refInput = strdup(ref.c_str());
 
-  std::string liftover = GetFullPath(opts.htAltLiftover_);
-  if (!liftover.empty()) {
-    config->altLiftover = strdup(liftover.c_str());
-  } else {
-    config->altLiftover = NULL;
-  }
+  config->altLiftover = NULL;
 
   config->decoyFname     = NULL;
   std::string decoysFile = GetFullPath(opts.htDecoys_);
-  if (decoysFile.empty() && !opts.htSuppressDecoys_) {
-    // Use default
-    std::string defaultFile = "/opt/edico/liftover/hs_decoys.fa";
-    if (boost::filesystem::exists(defaultFile)) {
-      decoysFile = defaultFile;
-    } else {
-      // This happens on jenkins when running the mock DMA suite (no /opt/edico)
-      std::cerr << "WARNING: " << defaultFile << " not found" << std::endl;
-      std::string oldDecoyFile = defaultFile;
-      getRelativeLiftoverPath(oldDecoyFile, decoysFile);
-    }
-  } else {
-    std::cerr << "Supressing decoys" << std::endl;
-  }
+  std::cerr << "Supressing decoys" << std::endl;
 
   if (!decoysFile.empty()) {
     assert(boost::filesystem::exists(decoysFile));
@@ -143,22 +105,10 @@ void SetBuildHashTableOptions(
   }
 
   config->popAltContigsFname = NULL;
-  std::string popContigs     = GetFullPath(opts.htPopAltContigs_);
-  if (!popContigs.empty()) {
-    config->popAltContigsFname = strdup(popContigs.c_str());
-  }
 
   config->popAltLiftoverFname = NULL;
-  std::string popLiftover     = GetFullPath(opts.htPopAltLiftover_);
-  if (!popLiftover.empty()) {
-    config->popAltLiftoverFname = strdup(popLiftover.c_str());
-  }
 
   config->popSnpsInput = NULL;
-  std::string popSnps  = GetFullPath(opts.htPopSnps_);
-  if (!popSnps.empty()) {
-    config->popSnpsInput = strdup(popSnps.c_str());
-  }
 
   config->maskBed     = NULL;
   std::string maskBed = GetFullPath(opts.htMaskBed_);
@@ -218,7 +168,7 @@ void SetBuildHashTableOptions(
   config->showIntParams        = opts.htDumpIntParams_;
   config->writeCompFile        = 1;
   config->writeHashFile        = opts.htWriteHashBin_;
-  config->altContigValidate    = (opts.exists("ht-alt-aware-validate") ? opts.htAltAwareValidate_ : true);
+  config->altContigValidate    = false;
   config->autoDetectValidate   = ReferenceAutoDetectValidate(opts);
   config->autoDetectDir        = strdup(GetReferenceAutoDetectDir(opts).c_str());
 

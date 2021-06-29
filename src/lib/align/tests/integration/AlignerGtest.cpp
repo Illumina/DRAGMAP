@@ -162,14 +162,16 @@ TEST(Aligner, updateMapqSingleEnded1XRepeat)
 
   Alignments alignments;
 
-  alignments.addAlignment();
-  alignments.back().setScore(101);
+  align::Alignment primary(0, 101);
+
+  alignments.append(primary);
   Alignments::iterator best = picker.pickBest(singleRead.getLength(), alignments);
   ASSERT_NE(alignments.end(), best);
   ASSERT_EQ(886, alignments.back().getMapq());
 
-  alignments.addAlignment();
-  alignments.back().setScore(99);
+  align::Alignment secondBest(0, 99);
+  secondBest.setCigarOperations(std::to_string(bases.length()) + "M");
+  alignments.append(secondBest);
   alignments.back().setFlags(align::AlignmentHeader::REVERSE_COMPLEMENT);
   best = picker.pickBest(singleRead.getLength(), alignments);
   ASSERT_NE(alignments.end(), best);

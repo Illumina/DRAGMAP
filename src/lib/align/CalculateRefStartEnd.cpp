@@ -106,11 +106,14 @@ std::pair<int64_t, int64_t> calculateRefStartEnd(const sequences::Read& read, co
 
   const int64_t ref_end = /*ch_cmd.ref_reverse ? (ref_start - ref_m1_v) :*/ (ref_start + ref_m1_v);
 
-  //    std::cerr << "beg_gap=" << beg_gap << " end_gap=" << end_gap << " skip_gap=" << skip_gap << " tail_gap=" << tail_gap <<
-  //      " head_gap=" << head_gap << ", read_len=" << read_len <<
-  //      std::hex << ", ref_start=" << ref_start << ", ref_end=" << ref_end <<
-  //      std::dec << ", ref_length=" << ref_length << ", tmp_ref_len=" << tmp_ref_len <<
-  //      " ref_start_adj=" << ref_start_adj << std::endl;
+  //    std::cerr << "beg_gap=" << beg_gap << ", end_gap=" << end_gap << ", skip_gap=" << skip_gap << ", tail_gap=" << tail_gap <<
+  //      ", head_gap=" << head_gap << std::uppercase <<
+  //      ", ref_start=0x" << std::hex << std::setw(10) << std::setfill('0') << ref_start <<
+  //      ", ref_end=0x" << std::hex << std::setw(10) << std::setfill('0') << ref_end <<
+  //      std::dec <<
+  //      ", qry_length=" << read_len <<
+  //      ", ref_length=" << ref_length << ", tmp_ref_len=" << tmp_ref_len <<
+  //      ", ref_start_adj=" << ref_start_adj << chain << std::endl;
 
   return std::make_pair(ref_start, ref_end);
 }

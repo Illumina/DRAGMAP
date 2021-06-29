@@ -23,12 +23,21 @@
 namespace dragenos {
 namespace align {
 
-bool AlignmentRescue::triggeredBy(
-    const Read& read, const SeedChain& anchoredChain, const bool any_pair_match) const
+bool AlignmentRescue::triggeredBy(const SeedChain& anchoredChain, const bool any_pair_match) const
 {
   const int chain_len = anchoredChain.getReadSpanLength();
-  return (any_pair_match && !anchoredChain.isExtra()) ? (chain_len >= resc_ifpair_len_)
-                                                      : (chain_len >= resc_nopair_len_);
+  return anchoredChain.isExtra() ||
+         ((any_pair_match) ? (chain_len >= resc_ifpair_len_) : (chain_len >= resc_nopair_len_));
+
+  /*
+  if rescue_en and (
+    rescuable(bit_to_int(not second))
+      and (
+        (
+          (chn_rrec.chain.extra or (chn_rrec.chain.sample and aln_cfg.rescue_hifreq)) and not chn_rrec.paired)
+  or (enable_rescue and (not chn_rrec.chain.filtered_out) and ((chn_rrec.rescue(0) and not any_pair_match) or
+  (chn_rrec.rescue(1) and any_pair_match)))) ) = '1' then
+ */
 }
 
 uint32_t AlignmentRescue::getReferenceInterval(
@@ -38,45 +47,44 @@ uint32_t AlignmentRescue::getReferenceInterval(
     std::vector<unsigned char>&         referenceBases,
     const bool                          second) const
 {
-  //const bool log = true || (anchoredChain.firstReferencePosition() ==1727073640);
+  typedef map::SeedPosition::ReferencePosition ReferencePosition;
+  const bool                                   rescue_end = anchoredChain.isReverseComplement();
+  const ReferencePosition                      pos_v =
+      rescue_end ? anchoredChain.lastReferencePosition() : anchoredChain.firstReferencePosition();
 
-  static constexpr auto pe_orient_fr_c = Orientation::pe_orient_fr_c;
-  static constexpr auto pe_orient_rf_c = Orientation::pe_orient_rf_c;
-  static constexpr auto pe_orient_ff_c = Orientation::pe_orient_ff_c;
-  static constexpr auto pe_orient_rr_c = Orientation::pe_orient_rr_c;
-  referenceBases.clear();
-  // TODO: add support for pe_orient_ff_c and pe_orient_rr_c
-  assert((pe_orientation_ == pe_orient_fr_c) || (pe_orientation_ == pe_orient_rf_c));
-  // relative position of the reference interval - before or after the anchored read
-  const bool after = (pe_orientation_ == pe_orient_fr_c)
-                         ? (!anchoredChain.isReverseComplement())
-                         : (pe_orientation_ == pe_orient_rf_c)
-                               ? (anchoredChain.isReverseComplement())
-                               : (pe_orientation_ == pe_orient_ff_c)
-                                     ? (second)
-                                     : /* (pe_orientation_==pe_orient_rr_c) ? */ (second);
-  // TODO: FIXME: alignment.getPosition() should be replaced by the offset in the raw reference
-  //const uint32_t anchorPosition = alignment.getPosition() + (after ? 0 : (alignment.getTemplateLength()));
-  const uint32_t anchorPosition =
-      after ? anchoredChain.firstReferencePosition() : anchoredChain.lastReferencePosition();
-  assert(anchorPosition >= pe_max_insert_);
-  // strange adjustments that are needed to match the output of map_resc_scan_0.log
-  // also, improve rescue scan concordance with HWs
-  static constexpr int BLAH_21 = 21;
-  static constexpr int BLAH_16 = 16;
-  // total length and min position of the reference region needed
-  // TODO: account for inserts shorter than the read length - e.g. trimming adaptor sequences
-  const int length = std::max(0, pe_max_insert_ - pe_min_insert_ - BLAH_21);
+  ReferencePosition rescue_min = 0;
+  ReferencePosition rescue_max = 0;
+  if (anchoredChain.isReverseComplement()) {
+    rescue_min = pos_v - pe_min_insert_;
+    rescue_max = pos_v - pe_max_insert_;
+  } else {
+    rescue_min = pos_v + pe_min_insert_;
+    rescue_max = pos_v + pe_max_insert_;
+  }
 
-  const int64_t minPosition =
-      anchorPosition - (after ? (rescuedReadLength - pe_min_insert_ - BLAH_21 + BLAH_16)
-                              : (pe_max_insert_ - rescuedReadLength - BLAH_16));
+  // dragen actually does -1, but then traced SCAN_CMD mismatches
+  const int other_len_m1 = rescuedReadLength + 1;
+  // NOTE: only Illumina pairs are supported: they look like so: >>>>>>>>>>>>>    <<<<<<<<<<<<<<<<
+  assert(Orientation::pe_orient_fr_c == pe_orientation_);
+  ReferencePosition first_ref_pos = 0;
+  ReferencePosition last_ref_pos  = 0;
+  if (!rescue_end) {
+    last_ref_pos  = rescue_max;
+    first_ref_pos = rescue_min - other_len_m1;
+  } else {
+    first_ref_pos = rescue_max;
+    last_ref_pos  = rescue_min + other_len_m1;
+  }
+
+  const int ref_length = ((((last_ref_pos + 1 - first_ref_pos) + 1) >> 2) << 2);
+  //  const int ref_length = ((((last_ref_pos + 1 - first_ref_pos) + 3) >> 2) << 2);
+  //  const int ref_length = (last_ref_pos + 1 - first_ref_pos);
+  assert(first_ref_pos <= last_ref_pos);
   if (isReversedRescue(anchoredChain)) {
-    reference.getRcBases(minPosition, minPosition + length, std::back_inserter(referenceBases));
-    // TODO: check if the reference bases actually needs to be reversed
+    reference.getRcBases(last_ref_pos - ref_length + 1, last_ref_pos + 1, std::back_inserter(referenceBases));
     std::reverse(referenceBases.begin(), referenceBases.end());
   } else {
-    reference.getBases(minPosition, minPosition + length, std::back_inserter(referenceBases));
+    reference.getBases(first_ref_pos, first_ref_pos + ref_length, std::back_inserter(referenceBases));
   }
 
   // std::cerr << "after=" << after << ", anchorPosition=" << anchorPosition<< ", length=" << length << ", pe_min_insert_=" << pe_min_insert_ << ", rescuedReadLength=" << rescuedReadLength << ", minPosition= " << minPosition << ", referenceBases.size()=" << referenceBases.size() << ", isReversedRescue(anchoredChain): " << isReversedRescue(anchoredChain) << std::endl;
@@ -85,25 +93,24 @@ uint32_t AlignmentRescue::getReferenceInterval(
 
     DRAGEN_RESCUE_LOG << "SCAN_CMD:  qry_start=0, ref_start="
                       << "0x" << std::uppercase << std::hex << std::setw(10) << std::setfill('0')
-                      << (!isReversedRescue(anchoredChain) ? minPosition : minPosition + length)
+                      << (!isReversedRescue(anchoredChain) ? first_ref_pos : (last_ref_pos))
                       << ", qry_end=" << std::dec << (((rescuedReadLength >> 2) << 2) - 1) << ", ref_end="
                       << "0x" << std::uppercase << std::hex << std::setw(10) << std::setfill('0')
-                      << ((isReversedRescue(anchoredChain) ? minPosition : minPosition + length) +
-                          (isReversedRescue(anchoredChain) ? 1 : -1))
+                      << (isReversedRescue(anchoredChain) ? (last_ref_pos - ref_length + 1)
+                                                          : (first_ref_pos + ref_length - 1))
                       << ", qry_length=" << std::dec << rescuedReadLength
-                      << ", ref_length=" << referenceBases.size()
+                      << ", ref_length=" << ref_length  // referenceBases.size()
                       << ", qry_comp=" << isReversedRescue(anchoredChain)
                       << ", ref_reverse=" << isReversedRescue(anchoredChain) << std::endl;
+    //    std::cerr << anchoredChain << " pos_v=" << std::hex << pos_v <<" rescue_min=" << std::hex << rescue_min << " rescue_max=" << std::hex << rescue_max << std::endl;
   }
 
-  return minPosition;
+  return first_ref_pos;
 }
 
 bool AlignmentRescue::scan(
-    const Read&                         anchoredRead,
     const Read&                         rescuedRead,
     const SeedChain&                    anchoredChain,
-    const Alignment&                    alignment,
     const reference::ReferenceSequence& reference,
     SeedChain&                          rescuedChain) const
 {
@@ -202,7 +209,14 @@ bool AlignmentRescue::scan(
       }
 
       //if (log) std::cerr << "scanning... succeeded" << std::endl;
-      DRAGEN_RESCUE_LOG << "RESCUE" << std::endl;
+      DRAGEN_RESCUE_LOG << "RESCUE: "
+                        << "first_seed_pos=" << rescuedChain.firstReadBase()
+                        << ", last_seed_pos=" << rescuedChain.lastReadBase() << ", first_ref_pos=0x"
+                        << std::hex << std::uppercase << std::setw(9) << std::setfill('0')
+                        << rescuedChain.firstSeedReferencePosition() - 1 << ", last_ref_pos=0x"
+                        << std::setw(9) << rescuedChain.lastSeedReferencePosition() - 1 << std::dec
+                        << ", rev_comp=" << rescuedChain.isReverseComplement()
+                        << ", perfect_align=" << rescuedChain.isPerfect() << std::endl;
       return true;
     }
   }
@@ -229,6 +243,7 @@ int AlignmentRescue::countMismatches(
     } else {
       bool mismatch = !(b[0] & b[1]);
       count += mismatch;
+      if (count > RESCUE_MAX_SNPS) break;
     }
   }
   return count;

@@ -25,6 +25,7 @@ namespace fastq {
 
 class FastqNRecordReader {
   std::istream& stream_;
+  std::string   line_;
 
 public:
   FastqNRecordReader(std::istream& stream) : stream_(stream) {}
@@ -40,7 +41,9 @@ public:
     static const int FASTQ_LINES_PER_RECORD = 4;
     int              lines                  = n * FASTQ_LINES_PER_RECORD;
 
-    while (lines && readLine(it)) {
+    while (lines && std::getline(stream_, line_)) {
+      std::copy(line_.begin(), line_.end(), it);
+      *it++ = '\n';
       --lines;
     }
 
@@ -48,31 +51,6 @@ public:
   }
 
   bool eof() const { return stream_.eof(); }
-
-private:
-  template <typename InsertIt>
-  bool readLine(InsertIt it)
-  {
-    int c = 0;
-    while (EOF != (c = boost::iostreams::get(stream_))) {
-      assert(boost::iostreams::WOULD_BLOCK != c);
-      if ('\r' == c) {
-        continue;
-      }
-
-      *(it++) = c;
-      if ('\n' == c) {
-        break;
-      }
-    }
-
-    if (!stream_ && !stream_.eof()) {
-      throw std::logic_error(
-          std::string("Error '") << strerror(errno) << "' reading input stream at " << stream_.tellg());
-    }
-
-    return !stream_.eof();
-  }
 };
 
 }  // namespace fastq

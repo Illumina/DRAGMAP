@@ -143,16 +143,14 @@ public:
    *chain
    ** \return true if the rescue scan should be executed
    **/
-  bool triggeredBy(const Read& read, const SeedChain& anchoredChain, const bool any_pair_match) const;
+  bool triggeredBy(const SeedChain& anchoredChain, const bool any_pair_match) const;
 
   /**
    ** \brief scan the reference interval for a  suitable seed chain if any
    **/
   bool scan(
-      const Read&                         anchoredRead,
       const Read&                         rescuedRead,
       const SeedChain&                    anchoredChain,
-      const Alignment&                    alignment,
       const reference::ReferenceSequence& reference,
       map::SeedChain&                     rescuedChain) const;
 

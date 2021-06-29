@@ -40,23 +40,34 @@ struct InsertSizeParameters {
   uint16_t    sigmaFactor_ = 0;
   Orientation orientation_ = Orientation::pe_orient_fr_c;
 
+  bool     isInitStatDone_ = false;
   uint16_t getSigmaFactor() const
   {
     return sigmaFactor_;
     //    return std::min(static_cast<uint16_t>(0xFFFF), static_cast<uint16_t>(std::round(double(0x2F200) / stddev_)));
   }
 
+  bool isInitDone() const { return isInitStatDone_; }
+
   InsertSizeParameters() {}
 
   InsertSizeParameters(
-      int min, int max, int mean, int rescueMin, int rescueMax, uint16_t sigmaFactor, Orientation orientation)
+      int         min,
+      int         max,
+      int         mean,
+      int         rescueMin,
+      int         rescueMax,
+      uint16_t    sigmaFactor,
+      Orientation orientation,
+      bool        isInitStatDone)
     : min_(min),
       max_(max),
       mean_(mean),
       rescueMin_(rescueMin),
       rescueMax_(rescueMax),
       sigmaFactor_(sigmaFactor),
-      orientation_(orientation)
+      orientation_(orientation),
+      isInitStatDone_(isInitStatDone)
   {
   }
 
@@ -77,7 +88,7 @@ struct InsertSizeParameters {
   {
     return os << "InsertSizeParameters(" << isp.min_ << "," << isp.max_ << "," << isp.mean_ << ","
               << isp.rescueMin_ << "," << isp.rescueMax_ << "," << isp.sigmaFactor_ << ","
-              << int(isp.orientation_) << ")";
+              << int(isp.orientation_) << "," << isp.isInitStatDone_ << ")";
   }
 };
 

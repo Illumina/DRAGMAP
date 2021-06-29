@@ -39,7 +39,7 @@ namespace map {
  **/
 class ChainBuilder {
 public:
-  ChainBuilder() : seedChainCount_(0) {}
+  ChainBuilder(double chainFilterRatio) : seedChainCount_(0), chainFilterRatio_(chainFilterRatio) {}
   void                                   clear() { seedChainCount_ = 0; }
   std::vector<SeedChain>::const_iterator begin() const { return seedChains_.begin(); }
   std::vector<SeedChain>::const_iterator end() const { return seedChains_.begin() + seedChainCount_; }
@@ -47,6 +47,7 @@ public:
   std::vector<SeedChain>::iterator begin() { return seedChains_.begin(); }
   std::vector<SeedChain>::iterator end() { return seedChains_.begin() + seedChainCount_; }
 
+  SeedChain&       at(std::size_t i) { return seedChains_.at(i); }
   const SeedChain& at(std::size_t i) const { return seedChains_.at(i); }
   const SeedChain& back() const { return seedChains_.at(seedChainCount_ - 1); }
 

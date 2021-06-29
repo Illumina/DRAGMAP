@@ -343,6 +343,23 @@ int Cigar::countStartClips() const
 }
 
 //--------------------------------------------------------------------------------adam
+// Count how many hard or soft clips are at the start of the cigar
+//
+int Cigar::countStartHardClips() const
+{
+  int rv = 0;
+
+  for (const auto& op : operations_) {
+    if (op.first != Cigar::HARD_CLIP) {
+      break;
+    }
+    rv += op.second;
+  }
+
+  return rv;
+}
+
+//--------------------------------------------------------------------------------adam
 // Count how many hard or soft clips are at the end of the cigar
 //
 int Cigar::countEndClips() const
@@ -353,6 +370,22 @@ int Cigar::countEndClips() const
     const auto& op = operations_[i];
 
     if (op.first != Cigar::SOFT_CLIP && op.first != Cigar::HARD_CLIP) {
+      break;
+    }
+    rv += op.second;
+  }
+
+  return rv;
+}
+
+int Cigar::countEndHardClips() const
+{
+  int rv = 0;
+
+  for (int32_t i = operations_.size() - 1; i >= 0; --i) {
+    const auto& op = operations_[i];
+
+    if (op.first != Cigar::HARD_CLIP) {
       break;
     }
     rv += op.second;

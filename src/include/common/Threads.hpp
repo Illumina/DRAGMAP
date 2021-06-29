@@ -86,24 +86,23 @@ public:
 
 template <bool crashOnExceptions>
 class BasicThreadPool {
+public:
+  typedef std::unique_lock<std::mutex> lock_type;
+
+private:
   struct Executor {
-    Executor(const std::size_t maxThreads, const unsigned request)
-      : maxThreads_(maxThreads), request_(request)
-    {
-    }
-    virtual void execute() = 0;
-    virtual ~Executor()    = default;
+    Executor(const std::size_t maxThreads) : maxThreads_(maxThreads) {}
+    virtual void execute(lock_type& lock) = 0;
+    virtual ~Executor()                   = default;
 
     const std::size_t    maxThreads_;
-    const unsigned       request_;
     Executor*            next_      = 0;
     Executor*            prev_      = 0;
     std::size_t          threadsIn_ = 0;
     bool                 complete_  = false;
     friend std::ostream& operator<<(std::ostream& os, const Executor& e)
     {
-      return os << "Executor(" << e.maxThreads_ << "mt," << e.request_ << "r," << e.threadsIn_ << "ti,"
-                << e.complete_ << "c)";
+      return os << "Executor(" << e.maxThreads_ << "mt," << e.threadsIn_ << "ti," << e.complete_ << "c)";
     }
   } * head_, *tail_;
   static std::mutex       mutex_;
@@ -115,12 +114,6 @@ class BasicThreadPool {
   // number of threads that have entered ready state
   std::size_t threadsReady_ = 0;
 
-  // constantly incrementing number to make sure each thread processes one master call only once
-  static int CURRENT_REQUEST_;
-  // to prevent thread deadlocking on entering request that are waiting for the ones
-  // the thread is in already
-  static int __thread THREAD_CURRENT_REQUEST_;
-
   std::exception_ptr firstThreadException_;
 
   typedef std::vector<std::thread> ThreadVector;
@@ -128,8 +121,6 @@ class BasicThreadPool {
   ThreadVector                     threads_{};
 
 public:
-  typedef std::unique_lock<std::mutex> lock_type;
-
   /**
    * \return number of threads in th pool + 1. This is because the thread calling execute()
    *         is counted as a worker.
@@ -193,23 +184,29 @@ public:
     //       assert(threads <= size()); //, "Request must not exceed the amount of threads available");
     struct FuncExecutor : public Executor {
       F& func_;
-      FuncExecutor(F& func, const unsigned threads) : Executor(threads, ++CURRENT_REQUEST_), func_(func) {}
-      virtual void execute() { func_(); }
+      FuncExecutor(F& func, const unsigned threads) : Executor(threads), func_(func) {}
+      virtual void execute(lock_type& lock) { func_(lock); }
     } executor(func, threads);
 
     //       std::cerr << "created " << executor << std::endl;
 
     enque(&executor);
-
     //       std::cerr << "enqued " << executor << std::endl;
 
     stateChangedCondition_.notify_all();
 
-    while (!terminateRequested_ && (!executor.complete_ || executor.threadsIn_)) {
-      executeAllPending(lock, executor.request_);
-      if (!terminateRequested_ && (!executor.complete_ || executor.threadsIn_)) {
-        stateChangedCondition_.wait(lock);
-      }
+    if (crashOnExceptions) {
+      unsafeExecute(lock, &executor);
+    } else {
+      safeExecute(lock, &executor);
+    }
+
+    // thread does not leave an executor unless there is nothing more to be done
+    assert(executor.complete_);
+
+    // wait for helper threads to exit
+    while (!terminateRequested_ && (executor.threadsIn_)) {
+      stateChangedCondition_.wait(lock);
     }
 
     unque(&executor);
@@ -293,11 +290,11 @@ private:
     head_ = executor;
   }
 
-  Executor* findNext(const unsigned maxRequestId = unsigned(-1))
+  Executor* findNext()
   {
     Executor* ret = 0;
-    for (Executor* e = tail_; 0 != e && maxRequestId >= e->request_; e = e->prev_) {
-      if (!e->complete_ && e->threadsIn_ < e->maxThreads_ && THREAD_CURRENT_REQUEST_ < e->request_) {
+    for (Executor* e = tail_; 0 != e; e = e->prev_) {
+      if (!e->complete_ && e->threadsIn_ < e->maxThreads_) {
         ret = e;
         break;
       }
@@ -313,19 +310,15 @@ private:
     assert(executor->threadsIn_ < executor->maxThreads_);
 
     ++executor->threadsIn_;
-    auto push               = THREAD_CURRENT_REQUEST_;
-    THREAD_CURRENT_REQUEST_ = executor->request_;
     try {
-      unlock_guard<lock_type> unlock(lock);
-      executor->execute();
+      executor->execute(lock);
     } catch (...) {
       executor->complete_ = true;
       --executor->threadsIn_;
       stateChangedCondition_.notify_all();
       throw;
     }
-    THREAD_CURRENT_REQUEST_ = push;
-    executor->complete_     = true;
+    executor->complete_ = true;
     --executor->threadsIn_;
     stateChangedCondition_.notify_all();
   }
@@ -368,11 +361,10 @@ private:
     }
   }
 
-  bool executeAllPending(lock_type& lock, const unsigned maxRequestId = -1)
+  bool executeAllPending(lock_type& lock)
   {
     bool ret = false;
-    for (Executor* executor = findNext(maxRequestId); !terminateRequested_ && 0 != executor;
-         executor           = findNext(maxRequestId)) {
+    for (Executor* executor = findNext(); !terminateRequested_ && 0 != executor; executor = findNext()) {
       if (crashOnExceptions) {
         unsafeExecute(lock, executor);
       } else {
@@ -386,10 +378,6 @@ private:
 };
 template <bool crashOnExceptions>
 std::mutex BasicThreadPool<crashOnExceptions>::mutex_;
-template <bool crashOnExceptions>
-int BasicThreadPool<crashOnExceptions>::CURRENT_REQUEST_ = 0;
-template <bool crashOnExceptions>
-int __thread BasicThreadPool<crashOnExceptions>::THREAD_CURRENT_REQUEST_ = 0;
 
 typedef BasicThreadPool<false> SafeThreadPool;
 typedef BasicThreadPool<true>  UnsafeThreadPool;

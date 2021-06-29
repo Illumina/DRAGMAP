@@ -55,8 +55,10 @@ void SmithWatermanT<C, T, WIDTH, ALIGN, STEERING_DELAY>::buildWavefronts(
       }
     }
   }
-  for (unsigned i = 0; (forcedHorizontalMotion > i) && (getDatabaseOffset() + width < getDatabaseSize());
-       ++i) {
+
+  // dragen thing...
+  setDatabaseSize(std::min(getDatabaseOffset() + 1 + 2 * width + 1, getDatabaseSize()));
+  for (unsigned i = 0; (getDatabaseOffset() < getDatabaseSize() - 1); ++i) {
     moveRight();
   }
 
@@ -65,10 +67,6 @@ void SmithWatermanT<C, T, WIDTH, ALIGN, STEERING_DELAY>::buildWavefronts(
   //    || (getQueryOffset() + 1 - getQuerySize()) < (getDatabaseSize() - getDatabaseOffset() - 1)))
   {
     moveDown();
-  }
-
-  while (getDatabaseOffset() + 1 < getDatabaseSize()) {
-    moveRight();
   }
 }
 
@@ -219,6 +217,9 @@ T SmithWatermanT<C, T, WIDTH, ALIGN, STEERING_DELAY>::align(
   buildWavefronts(v, d, h);
 
   DRAGEN_SMITH_WATERMAN_LOG << *this << std::endl;
+#ifdef TRACE_SMITH_WATERMAN
+  printHistoryNice<3>(std::cerr, *this, scores_);
+#endif  // TRACE_SMITH_WATERMAN
 
   return buildCigar(querySize, cigar);
   // TODO: store position, score and cigar into alignment
@@ -268,6 +269,7 @@ void SmithWatermanT<C, T, WIDTH, ALIGN, STEERING_DELAY>::setDatabase(
   //  reversedRef_.at(0) = NOT_A_BASE;
   databaseBeginIt_ = reversedRef_.begin();
   databaseEndIt_   = reversedRef_.end();
+  dbSize_          = reversedRef_.size();
 }
 
 template <typename C, typename T, int WIDTH, int ALIGN, unsigned STEERING_DELAY>
@@ -528,7 +530,7 @@ SmithWatermanT<C, T, WIDTH, ALIGN, STEERING_DELAY>::getNextMove()
     --forcedVerticalMotion_;
     steer_ver = true;
   } else if (forcedDiagonalMotion_) {
-    --forcedDiagonalMotion_;
+    forcedDiagonalMotion_ -= !(scores_.size() % 2);
     // query of db too short to have enough scores. Just go diagonally
     steer_ver = !(scores_.size() % 2) ? false : true;
     //  std::cerr << "--diag--" << std::endl;

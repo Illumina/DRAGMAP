@@ -16,6 +16,7 @@
 #include "align/AlignmentRescue.hpp"
 #include "align/SinglePicker.hpp"
 #include "align/Tlen.hpp"
+#include "common/DragenLogger.hpp"
 
 namespace dragenos {
 namespace align {
@@ -105,35 +106,32 @@ static const int petab_rom_c[] = {
 int PairBuilder::computePairPenalty(
     const InsertSizeParameters& insertSizeParameters,
     const ReadPair&             readPair,
-    const map::SeedChain*       c1,
-    const map::SeedChain*       c2,
-    const bool                  properPair) const
+    const Alignment*            a2,
+    const Alignment*            a1,
+    const bool                  properPair,
+    int&                        insert_len,
+    int&                        insert_diff) const
 {
   int m2a_penalty = -1;
-  if (!c1 || !c2 || !properPair) {
+  if (!a1 || !a2 || !properPair) {
     m2a_penalty = aln_cfg_unpaired_pen_;
   } else {
-    //  std::cerr << "c1:" << c1 << " c2:" << c2 <<std::endl;
+    //      std::cerr << "c1:" << *c1 << " c2:" << *c2 <<std::endl;
     const int inp_result_qry_end_gap =
-        readPair[0].getLength() - c1->lastReadBase() - 1;  //back().getSeed().getReadPosition() - 1;
-    //  std::cerr << "inp_result_qry_end_gap:" << inp_result_qry_end_gap << std::endl;
+        a1->getCigar()
+            .countEndClips();  //readPair[0].getLength() - c1->lastReadBase() - 1;  //back().getSeed().getReadPosition() - 1;
+    //      std::cerr << "inp_result_qry_end_gap:" << inp_result_qry_end_gap << std::endl;
     const int result_rrec_qry_end_gap =
-        readPair[1].getLength() - c2->lastReadBase() - 1;  //back().getSeed().getReadPosition() - 1;
-    //  std::cerr << "result_rrec_qry_end_gap:" << result_rrec_qry_end_gap << std::endl;
+        a2->getCigar()
+            .countEndClips();  //readPair[1].getLength() - c2->lastReadBase() - 1;  //back().getSeed().getReadPosition() - 1;
+    //      std::cerr << "result_rrec_qry_end_gap:" << result_rrec_qry_end_gap << std::endl;
 
-    ////  int gap_v = !c1.isReverseComplement() ? c1.front().getSeed().getReadPosition() : inp_result_qry_end_gap;
-    //  const int inp_eff_beg = hashtableConfig_.convertToReferenceCoordinates(c1.firstReferencePosition()).second;// - gap_v;
-    ////  gap_v = c1.isReverseComplement() ? c1.front().getSeed().getReadPosition() : inp_result_qry_end_gap;
-    //  const int inp_eff_end = hashtableConfig_.convertToReferenceCoordinates(c1.lastReferencePosition()).second;// + gap_v;
-    ////  gap_v = !c2.isReverseComplement() ? c2.front().getSeed().getReadPosition() : result_rrec_qry_end_gap;
-    //  const int rct_eff_beg = hashtableConfig_.convertToReferenceCoordinates(c2.firstReferencePosition()).second;// - gap_v;
-    ////  gap_v = c2.isReverseComplement() ? c2.front().getSeed().getReadPosition() : result_rrec_qry_end_gap;
-    //  const int rct_eff_end = hashtableConfig_.convertToReferenceCoordinates(c2.lastReferencePosition()).second;// + gap_v;
+    const int inp_eff_beg = a1->getUnclippedStartPosition();
+    const int inp_eff_end = a1->getUnclippedEndPosition();
+    const int rct_eff_beg = a2->getUnclippedStartPosition();
+    const int rct_eff_end = a2->getUnclippedEndPosition();
 
-    const int inp_eff_beg = c1->firstReferencePosition();
-    const int inp_eff_end = c1->lastReferencePosition();
-    const int rct_eff_beg = c2->firstReferencePosition();
-    const int rct_eff_end = c2->lastReferencePosition();
+    //      std::cerr << " inp_eff_beg=" << inp_eff_beg << " inp_eff_end=" << inp_eff_end << " rct_eff_beg=" << rct_eff_beg << " rct_eff_end=" << rct_eff_end<< std::endl;
 
     using Orientation = InsertSizeParameters::Orientation;
 
@@ -150,7 +148,7 @@ int PairBuilder::computePairPenalty(
     }
     //-- Forward-reverse: beginning from the forward one, end from the reverse one
     //-- Reverse-forward: beginning from the reverse one, end from the forward one
-    else if ((insertSizeParameters.orientation_ == Orientation::pe_orient_fr_c) ^ c1->isReverseComplement()) {
+    else if ((insertSizeParameters.orientation_ == Orientation::pe_orient_fr_c) ^ a1->isReverseComplement()) {
       //    std::cerr << "fr" << std::endl;
       insert_beg = inp_eff_beg;
       insert_end = rct_eff_end;
@@ -164,13 +162,12 @@ int PairBuilder::computePairPenalty(
       //    wrong_end_v := '0' & result_rrec.ref_end;
     }
 
-    const int insert_len = insert_end - insert_beg + 1;
-    //    std::cerr << "insert_beg:" << insert_beg << " insert_end:" << insert_end << " insert_len:" << insert_len << std::endl;
+    insert_len = insert_end - insert_beg + 1;
+    //        std::cerr << "insert_beg:" << insert_beg << " insert_end:" << insert_end << " insert_len:" << insert_len << std::endl;
 
-    const int insert_diff = std::abs(insert_len - insertSizeParameters.mean_);
-    //    std::cerr << "insert_diff:" << insert_diff << std::endl;
-    const unsigned ins_prod = insert_diff * insertSizeParameters.getSigmaFactor();
-    //  std::cerr << "sigma factor:" << insertSizeParameters.getSigmaFactor() << std::endl;
+    insert_diff = std::abs(insert_len - insertSizeParameters.mean_);
+    //      std::cerr << "sigma factor:" << insertSizeParameters.getSigmaFactor() << " pe_mean_insert:" << insertSizeParameters.mean_ << " insert_diff:" << insert_diff << std::endl;
+    const unsigned   ins_prod                 = insert_diff * insertSizeParameters.getSigmaFactor();
     static const int sigma_factor_frac_bits_c = 12;
     static const int petab_addr_bits_c        = 9;
     const unsigned   ins_prod_q = ((1 << petab_addr_bits_c) - 1) & (ins_prod >> sigma_factor_frac_bits_c);
@@ -180,13 +177,14 @@ int PairBuilder::computePairPenalty(
                                                                           : aln_cfg_unpaired_pen_;
   }
 
-  const double m2a_scale = mapq2aln(similarity_.getSnpCost(), readPair.getLength());
-  //  std::cerr << "m2a_scale:" << m2a_scale << std::endl;
-  const int m2a_prod             = m2a_scale * m2a_penalty;
+  const int m2a_scale = mapq2aln(similarity_.getSnpCost(), readPair.getLength());
+  //    std::cerr << "m2a_scale:" << m2a_scale << std::endl;
+  const int m2a_prod = (m2a_scale * m2a_penalty) >> 10;
+
   const int m2a_prod_frac_bits_c = 10;
   const int m2a_prod_pen         = m2a_prod;  // >> m2a_prod_frac_bits_c;
 
-  //    std::cerr << "m2a_prod_pen:" << m2a_prod_pen << std::endl;
+  //      std::cerr << "m2a_prod_pen:" << m2a_prod_pen << std::endl;
   return m2a_prod_pen;
 }
 
@@ -205,49 +203,65 @@ AlignmentPairs::const_iterator PairBuilder::findSecondBest(
 {
   AlignmentPairs::const_iterator ret = pairs.end();
   for (AlignmentPairs::const_iterator it = pairs.begin(); pairs.end() != it; ++it) {
+    //    std::cerr << "trying:" << *it << std::endl;
     if ((pairs.end() == ret || ret->getScore() < it->getScore()) &&
-        !best->at(readIdx).isDuplicate(it->at(readIdx)) && best->at(readIdx).isOverlap(it->at(readIdx))) {
+        !best->at(readIdx).isDuplicate(it->at(readIdx))) {
       ret = it;
     }
   }
 
   if (pairs.end() != ret) {
-    const ScoreType list_pe_max = ret->getScore();
+#ifdef TRACE_SCORING
+    std::cerr << "[SCORING]\t"
+              << "best:" << *best << std::endl;
+    std::cerr << "[SCORING]\t"
+              << "second best:" << *ret << std::endl;
+#endif  // TRACE_SCORING
+    ScoreType       other_best_scr = best->at(!readIdx).getScore();
+    const int       m2a_scale      = mapq2aln(similarity_.getSnpCost(), averageReadLength);
+    const ScoreType scaled_max_pen = (m2a_scale * aln_cfg_unpaired_pen_) >> 10;  //27;
+
+    const bool      use_pe_mapq_v = ret->isProperPair();
+    const ScoreType list_pe_max =
+        use_pe_mapq_v ? ret->getScore() : (ret->at(readIdx).getScore() + other_best_scr - scaled_max_pen);
     const ScoreType list_pe_min = list_pe_max - similarity_.getSnpCost();
-    //  std::cerr << "list_pe_max:" << list_pe_max << std::endl;
-    //  std::cerr << "list_pe_min:" << list_pe_min << std::endl;
-    for (AlignmentPairs::const_iterator it = pairs.begin(); pairs.end() != it; ++it) {
-      if (it->getScore() > list_pe_min && it->getScore() <= list_pe_max) {
-        //        std::cerr << "near sub:" << *it << std::endl;
-        ++sub_count;
+    const ScoreType list_se_max =
+        use_pe_mapq_v ? (ret->getScore() - other_best_scr + scaled_max_pen) : ret->at(readIdx).getScore();
+    const ScoreType list_se_min = std::max(alnMinScore_, list_se_max - similarity_.getSnpCost());
+#ifdef TRACE_SCORING
+    std::cerr << "[SCORING]\t"
+              << "list_pe_min:" << list_pe_min << " list_pe_max:" << list_pe_max << std::endl;
+    std::cerr << "[SCORING]\t"
+              << "list_se_min:" << list_se_min << " list_se_max:" << list_se_max
+              << " sub_pair_score_v=" << ret->getScore()
+              << " other_mins_pen_v=" << (other_best_scr - scaled_max_pen)
+              << " se_best_score=" << other_best_scr << std::endl;
+#endif  // TRACE_SCORING
+
+    if (ret->isProperPair()) {
+      for (AlignmentPairs::const_iterator it = pairs.begin(); pairs.end() != it; ++it) {
+        if (it->isProperPair() && it->getScore() > list_pe_min && it->getScore() <= list_pe_max) {
+          ++sub_count;
+#ifdef TRACE_SCORING
+          std::cerr << "[SCORING]\t"
+                    << "psub_count:" << sub_count << " " << *it << std::endl;
+#endif  // TRACE_SCORING
+        }
       }
     }
-
-    ScoreType other_best_scr = alnMinScore_;
-    for (const Alignment& oe : unpairedAlignments[!readIdx]) {
-      if (&oe != &best->at(!readIdx)) {
-        other_best_scr = std::max(other_best_scr, oe.getScore());
-      }
-    }
-
-    const double    m2a_scale      = mapq2aln(similarity_.getSnpCost(), averageReadLength);
-    const ScoreType scaled_max_pen = m2a_scale * aln_cfg_unpaired_pen_;  //27;
 
     // std::cerr << "second best: " << *ret << std::endl;
     // std::cerr << "other_best_scr: " << other_best_scr << std::endl;
-    // std::cerr << "scaled_max_pen: " << scaled_max_pen << std::endl;
-    // const ScoreType list_se_max = ret->getScore() - best_other_end->getScore() + scaled_max_pen;
-    const ScoreType list_se_max = ret->getScore() - other_best_scr + scaled_max_pen;
-    const ScoreType list_se_min = list_se_max - similarity_.getSnpCost();
-    //  std::cerr << "list_se_max:" << list_se_max << std::endl;
-    //  std::cerr << "list_se_min:" << list_se_min << std::endl;
 
     for (Alignments::const_iterator it = unpairedAlignments[readIdx].begin();
          unpairedAlignments[readIdx].end() != it;
          ++it) {
       if (!it->isUnmapped() && it->getScore() > list_se_min && it->getScore() <= list_se_max) {
-        //      std::cerr << "sub_count:" << *it << " scaled_max_pen:" << scaled_max_pen << std::endl;
         ++sub_count;
+#ifdef TRACE_SCORING
+        std::cerr << "[SCORING]\t"
+                  << "ssub_count:" << sub_count << " " << *it << std::endl;
+#endif  // TRACE_SCORING
       }
     }
   }
@@ -255,66 +269,139 @@ AlignmentPairs::const_iterator PairBuilder::findSecondBest(
   return ret;
 }
 
-ScoreType PairBuilder::findSecondBestScore(
+AlignmentPairs::const_iterator PairBuilder::findSecondBestScore(
     const int                            averageReadLength,
     const AlignmentPairs&                pairs,
     const UnpairedAlignments&            unpairedAlignments,
     const AlignmentPairs::const_iterator best,
     int                                  readIdx,
     int&                                 sub_count,
-    ScoreType&                           secondBestPeScore) const
+    ScoreType&                           secondBestPeScore,
+    ScoreType&                           secondBestSeScore) const
 {
   AlignmentPairs::const_iterator secondBest =
       findSecondBest(averageReadLength, pairs, unpairedAlignments, best, readIdx, sub_count);
 
-  int             se_sub_count      = 0;
-  const ScoreType secondBestSeScore = align::findSecondBestScore(
-      similarity_.getSnpCost(), unpairedAlignments[readIdx], &best->at(readIdx), se_sub_count);
+  int se_sub_count  = 0;
+  secondBestSeScore = std::max(
+      alnMinScore_,
+      align::findSecondBestScore(
+          similarity_.getSnpCost(), unpairedAlignments[readIdx], &best->at(readIdx), se_sub_count));
 
   if (pairs.end() != secondBest) {
     secondBestPeScore = secondBest->getScore();
-    return std::max(secondBestSeScore, secondBest->at(readIdx).getScore());
+#ifdef TRACE_SCORING
+    std::cerr << "[SCORING]\t"
+              << "findSecondBestScore\tr" << readIdx << " sub_count:" << sub_count
+              << " se_sub_count:" << se_sub_count << " secondBestSeScore:" << secondBestSeScore
+              << " secondBestPeScore:" << secondBestPeScore << std::endl;
+#endif  // TRACE_SCORING
+  } else {
+#ifdef TRACE_SCORING
+    std::cerr << "[SCORING]\t"
+              << "findSecondBestScore\tr" << readIdx << " sub_count:" << sub_count
+              << " se_sub_count:" << se_sub_count << " secondBestSeScore:" << secondBestSeScore << std::endl;
+#endif  // TRACE_SCORING
+    sub_count = se_sub_count;
   }
-
-  return secondBestSeScore;
+  return secondBest;
 }
 
 void PairBuilder::updateEndMapq(
-    const int                 averageReadLength,
-    AlignmentPairs&           pairs,
-    const UnpairedAlignments& unpairedAlignments,
-    AlignmentPairs::iterator  best,
-    const int                 readIdx) const
+    const int                averageReadLength,
+    AlignmentPairs::iterator best,
+    const int                readIdx,
+    int                      sub_count,
+    ScoreType                sub_pair_score_v,
+    const ScoreType          secondBestSeScore[],
+    const ScoreType          xs[]) const
 {
   if (best->at(readIdx).isUnmapped()) {
     best->at(readIdx).setMapq(0);
   } else {
-    int             sub_count           = 0;
-    ScoreType       secondBestPairScore = INVALID_SCORE;
-    const ScoreType secondBestScore     = findSecondBestScore(
-        averageReadLength, pairs, unpairedAlignments, best, readIdx, sub_count, secondBestPairScore);
-    //        std::cerr << "r" << readIdx << " sub_count:" << sub_count << std::endl;
-    const MapqType a2m_mapq = computeMapq(
-        similarity_.getSnpCost(),
-        best->getScore(),
-        std::max(alnMinScore_, secondBestPairScore),
-        std::max(aln_cfg_mapq_min_len_, averageReadLength));
-    //        std::cerr << "r" << readIdx << " a2m_mapq:" << a2m_mapq << std::endl;
-    const MapqType sub_mapq_pen_v = sub_count ? 3.0 * std::log2(sub_count) : 0;
-    //        std::cerr << "r" << readIdx << " sub_mapq_pen_v:" << sub_mapq_pen_v << std::endl;
-    best->at(readIdx).setMapq(a2m_mapq - sub_mapq_pen_v);
-    best->at(readIdx).setXs(secondBestScore >= alnMinScore_ ? secondBestScore : INVALID_SCORE);
+    const int       a2m_scale     = aln2mapq(similarity_.getSnpCost(), averageReadLength);
+    const ScoreType xs_score_diff = best->getScore() - xs[0] - xs[1];
+    const MapqType xs_heur_mapq = std::max(0, ((xs_score_diff * a2m_scale) >> 13) + aln_cfg_xs_pair_penalty_);
+
+    const MapqType a2m_mapq = INVALID_SCORE == sub_pair_score_v
+                                  ? computeMapq(
+                                        similarity_.getSnpCost(),
+                                        best->at(readIdx).getScore(),
+                                        std::max(alnMinScore_, secondBestSeScore[readIdx]),
+                                        std::max(aln_cfg_mapq_min_len_, averageReadLength))
+                                  : computeMapq(
+                                        similarity_.getSnpCost(),
+                                        best->getScore(),
+                                        std::max(alnMinScore_, sub_pair_score_v),
+                                        std::max(aln_cfg_mapq_min_len_, averageReadLength));
+
+    const MapqType pe_mapq = a2m_mapq;
+
+    const int      sub_count_log2 = log2_simple(sub_count);
+    const MapqType sub_mapq_pen_v = sub_count ? (3 * sub_count_log2) : 0;
+
+    const MapqType mapq_prod_pen = pe_mapq - (sub_mapq_pen_v >> 7);
+
+    const MapqType mapq =
+        (INVALID_SCORE != xs_score_diff) ? std::min(xs_heur_mapq, mapq_prod_pen) : mapq_prod_pen;
+
+#ifdef TRACE_SCORING
+    std::cerr << "[SCORING]\t"
+              << "r" << readIdx << " a2m_scale:" << a2m_scale
+              << " se_score_diff:" << (best->at(readIdx).getScore() - secondBestSeScore[readIdx])
+              << " best_pair_score:" << best->getScore() << " sub_pair_score_v:" << sub_pair_score_v
+              << " pe_score_diff:" << (best->getScore() - sub_pair_score_v)
+              << " xs_score_diff:" << xs_score_diff << " result_rsub:" << xs[readIdx]
+              << " mate_sub_scr:" << xs[!readIdx] << " sub_count:" << sub_count
+              << " sub_mapq_pen_v:" << sub_mapq_pen_v << " xs_heur_mapq:" << xs_heur_mapq
+              << " pe_mapq:" << pe_mapq << " mapq:" << mapq << std::endl;
+#endif  // TRACE_SCORING
+#ifdef TRACE_SCORING
+    std::cerr << "[SCORING]\t"
+              << "a2m_mapq=" << a2m_mapq << " sub_count=" << sub_count << " sub_count_log2=" << sub_count_log2
+              << " sub_mapq_pen_v=" << sub_mapq_pen_v << " mapq_prod_pen=" << mapq_prod_pen << std::endl;
+#endif  // TRACE_SCORING
+    best->at(readIdx).setMapq(mapq);
+
+    best->at(readIdx).setXs(xs[readIdx] > alnMinScore_ ? xs[readIdx] : INVALID_SCORE);
   }
 }
 
 void PairBuilder::updateMapq(
-    const int                 readLength,
+    const int                 averageReadLength,
     AlignmentPairs&           pairs,
     const UnpairedAlignments& unpairedAlignments,
     AlignmentPairs::iterator  best) const
 {
-  updateEndMapq(readLength, pairs, unpairedAlignments, best, 0);
-  updateEndMapq(readLength, pairs, unpairedAlignments, best, 1);
+  int       sub_count[2]         = {0, 0};
+  ScoreType sub_pair_score_v[2]  = {INVALID_SCORE, INVALID_SCORE};
+  ScoreType secondBestSeScore[2] = {INVALID_SCORE, INVALID_SCORE};
+
+  AlignmentPairs::const_iterator secondBestPair[2] = {findSecondBestScore(
+                                                          averageReadLength,
+                                                          pairs,
+                                                          unpairedAlignments,
+                                                          best,
+                                                          0,
+                                                          sub_count[0],
+                                                          sub_pair_score_v[0],
+                                                          secondBestSeScore[0]),
+
+                                                      findSecondBestScore(
+                                                          averageReadLength,
+                                                          pairs,
+                                                          unpairedAlignments,
+                                                          best,
+                                                          1,
+                                                          sub_count[1],
+                                                          sub_pair_score_v[1],
+                                                          secondBestSeScore[1])};
+
+  updateEndMapq(
+      averageReadLength, best, 0, sub_count[0], sub_pair_score_v[0], secondBestSeScore, secondBestSeScore);
+
+  updateEndMapq(
+      averageReadLength, best, 1, sub_count[1], sub_pair_score_v[1], secondBestSeScore, secondBestSeScore);
 }
 
 AlignmentPairs::iterator PairBuilder::pickBest(

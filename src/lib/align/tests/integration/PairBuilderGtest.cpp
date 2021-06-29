@@ -44,7 +44,7 @@ TEST(PairBuilder, updateMapq)
   const short                             match    = 1;
   const short                             mismatch = -1;
   const dragenos::align::SimilarityScores similarityScores(match, mismatch);
-  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 0, 0, 0, false, 50);
+  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50);
 
   const unsigned char reference[] =
       "TCCATCGAGATGGACGCCGTTGGCGCTCTCCGTCTTTCTCCATTGCGTCGTGGCCTTGCTATTGACTCTACTGTAGACATTTTTACTTTTTATGTCCCTCTTATG";
@@ -57,7 +57,6 @@ TEST(PairBuilder, updateMapq)
       "#AAAAEEEEEEEEEEEEEEEEEEEEEEE6EEEEEEEEEEEEEEEEEAEAEEEEEEEEEEEEAEEE/EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE";
 
   uint64_t id       = 17;
-  unsigned position = 0;
 
   ReadPair readPair;
   readPair[0].init(
@@ -65,30 +64,38 @@ TEST(PairBuilder, updateMapq)
       Bases(bases.begin(), bases.end()),
       Qualities(qualities.begin() + SEQUENCE_FLANKS, qualities.begin() + SEQUENCE_FLANKS + bases.length()),
       id,
-      position);
+      0);
 
   readPair[1].init(
       Name(name.begin(), name.end()),
       Bases(bases.begin(), bases.end()),
       Qualities(qualities.begin() + SEQUENCE_FLANKS, qualities.begin() + SEQUENCE_FLANKS + bases.length()),
       id,
-      position);
+      1);
 
   AlignmentPairs            alignments;
   align::UnpairedAlignments unpairedAlignments;
   unpairedAlignments[0].addAlignment();
   unpairedAlignments[1].addAlignment();
+  unpairedAlignments[0].at(0).setPosition(123);
+  unpairedAlignments[1].at(0).setPosition(321);
+  unpairedAlignments[0].at(0).setCigarOperations(std::string(bases.length()/3*2, 'M') + std::string(bases.length() - bases.length()/3*2, 'S'));
+  unpairedAlignments[1].at(0).setCigarOperations(std::string(bases.length() - bases.length()/3*2, 'S') + std::string(bases.length()/3*2, 'M'));
   alignments.push_back(AlignmentPair(unpairedAlignments[0].at(0), unpairedAlignments[1].at(0)));
+  alignments.push_back(AlignmentPair(unpairedAlignments[1].at(0), unpairedAlignments[0].at(0)));
   alignments[0].setScore(113);
+  alignments[1].setScore(0);
   pairBuilder.pickBest(readPair, alignments, unpairedAlignments);
   // unique alignment pair. Both ends get mapq 60
-  ASSERT_EQ(976, alignments.back()[0].getMapq());
-  ASSERT_EQ(976, alignments.back()[1].getMapq());
+  ASSERT_EQ(804, alignments.back()[0].getMapq());
+  ASSERT_EQ(804, alignments.back()[1].getMapq());
 
   unpairedAlignments[0].addAlignment();
   unpairedAlignments[1].addAlignment();
   unpairedAlignments[0].at(1).setFlags(align::AlignmentHeader::REVERSE_COMPLEMENT);
+  unpairedAlignments[0].at(1).setCigarOperations(std::string(bases.length()/3*2, 'M') + std::string(bases.length() - bases.length()/3*2, 'S'));
   unpairedAlignments[1].at(1).setFlags(align::AlignmentHeader::REVERSE_COMPLEMENT);
+  unpairedAlignments[1].at(1).setCigarOperations(std::string(bases.length() - bases.length()/3*2, 'S') + std::string(bases.length()/3*2, 'M'));
   alignments.push_back(AlignmentPair(unpairedAlignments[0].at(1), unpairedAlignments[1].at(1)));
   alignments.back().setScore(108);
   pairBuilder.pickBest(readPair, alignments, unpairedAlignments);
@@ -103,7 +110,7 @@ TEST(PairBuilder, pickBest1)
   const short                             mismatch = -1;
   const dragenos::align::SimilarityScores similarityScores(match, mismatch);
   const ReferenceDirDummy                 referenceDir;
-  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 0, 0, 0, false, 50);
+  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50);
 
   const unsigned char reference[] =
       "TCCATCGAGATGGACGCCGTTGGCGCTCTCCGTCTTTCTCCATTGCGTCGTGGCCTTGCTATTGACTCTACTGTAGACATTTTTACTTTTTATGTCCCTCTTATG";
@@ -137,7 +144,7 @@ TEST(PairBuilder, pickBest1)
 
   const InsertSizeParameters insertSizeParameters = {
       332, 486, 410, 332, 486, 14.0708, InsertSizeParameters::Orientation::pe_orient_fr_c};
-  std::array<map::ChainBuilder, 2> chainBuilders;
+  std::array<map::ChainBuilder, 2> chainBuilders{map::ChainBuilder(4.0), map::ChainBuilder(4.0)};
 
   chainBuilders[0].addSeedPosition(SeedPosition(Seed(&readPair[0], 0, 17), 0x2808c, 0), false, false);
   chainBuilders[0].addSeedPosition(SeedPosition(Seed(&readPair[0], 49, 17), 0x280bd, 0), false, false);
@@ -153,10 +160,14 @@ TEST(PairBuilder, pickBest1)
   std::array<Alignments, 2> unpaired;
   Alignment                 a11, a21, a22, a23;
   a11.setScore(66);
+  a11.setCigarOperations(std::to_string(bases.length()) + "M");
   a21.setScore(66);
+  a21.setCigarOperations(std::to_string(bases.length()) + "M");
   a22.setScore(56);
+  a22.setCigarOperations(std::to_string(bases.length()) + "M");
   a22.setFlags(align::AlignmentHeader::REVERSE_COMPLEMENT);
   a23.setScore(17);
+  a23.setCigarOperations(std::to_string(bases.length()) + "M");
   unpaired[0].append(a11);
   unpaired[1].append(a21);
   unpaired[1].append(a22);
@@ -167,8 +178,10 @@ TEST(PairBuilder, pickBest1)
       alignments.insert(alignments.end(), AlignmentPair(unpaired[0].at(i0), unpaired[1].at(i1)));
       const bool isPair =
           pairMatch(insertSizeParameters, readPair, chainBuilders[0].at(i0), chainBuilders[1].at(i1));
+      int       insert_len  = 0;
+      int       insert_diff = 0;
       const int pair_pen = pairBuilder.computePairPenalty(
-          insertSizeParameters, readPair, &chainBuilders[0].at(i0), &chainBuilders[1].at(i1), isPair);
+          insertSizeParameters, readPair, &unpaired[0].at(i0), &unpaired[1].at(i1), isPair, insert_len, insert_diff);
       alignments.back().setScore(
           alignments.back()[0].getScore() + alignments.back()[1].getScore() - pair_pen);
       alignments.back().setPotentialScore(
@@ -180,8 +193,8 @@ TEST(PairBuilder, pickBest1)
   const auto best = pairBuilder.pickBest(readPair, alignments, unpaired);
   // unique alignment pair. Both ends get mapq 60
   ASSERT_NE(alignments.end(), best);
-  ASSERT_EQ(1101, best->at(0).getMapq());
-  ASSERT_EQ(41, best->at(1).getMapq());
+  ASSERT_EQ(488, best->at(0).getMapq());
+  ASSERT_EQ(155, best->at(1).getMapq());
 }
 
 TEST(PairBuilder, pickBest2)
@@ -190,7 +203,7 @@ TEST(PairBuilder, pickBest2)
   const short                             mismatch = -1;
   const dragenos::align::SimilarityScores similarityScores(match, mismatch);
   const ReferenceDirDummy                 referenceDir;
-  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 0, 0, 0, false, 50);
+  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50);
 
   const unsigned char reference[] =
       "TCCATCGAGATGGACGCCGTTGGCGCTCTCCGTCTTTCTCCATTGCGTCGTGGCCTTGCTATTGACTCTACTGTAGACATTTTTACTTTTTATGTCCCTCTTATG";
@@ -224,7 +237,7 @@ TEST(PairBuilder, pickBest2)
 
   const InsertSizeParameters insertSizeParameters = {
       332, 486, 410, 332, 486, 14.0708, InsertSizeParameters::Orientation::pe_orient_fr_c};
-  std::array<map::ChainBuilder, 2> chainBuilders;
+  std::array<map::ChainBuilder, 2> chainBuilders{map::ChainBuilder(4.0), map::ChainBuilder(4.0)};
 
   chainBuilders[0].addSeedPosition(SeedPosition(Seed(&readPair[0], 0, 17), 0x2808c, 0), false, false);
   chainBuilders[0].addSeedPosition(SeedPosition(Seed(&readPair[0], 49, 17), 0x280bd, 0), false, false);
@@ -249,11 +262,16 @@ TEST(PairBuilder, pickBest2)
   std::array<Alignments, 2> unpaired;
   Alignment                 a11, a21, a22, a23, a24;
   a11.setScore(66);
+  a11.setCigarOperations(std::to_string(bases.length()) + "M");
   a21.setScore(66);
+  a21.setCigarOperations(std::to_string(bases.length()) + "M");
   a22.setScore(61);
+  a22.setCigarOperations(std::to_string(bases.length()) + "M");
   a22.setFlags(align::AlignmentHeader::REVERSE_COMPLEMENT);
   a23.setScore(36);
+  a23.setCigarOperations(std::to_string(bases.length()) + "M");
   a24.setScore(25);
+  a24.setCigarOperations(std::to_string(bases.length()) + "M");
   unpaired[0].append(a11);
   unpaired[1].append(a21);
   unpaired[1].append(a22);
@@ -265,8 +283,10 @@ TEST(PairBuilder, pickBest2)
       alignments.insert(alignments.end(), AlignmentPair(unpaired[0].at(i0), unpaired[1].at(i1)));
       const bool isPair =
           pairMatch(insertSizeParameters, readPair, chainBuilders[0].at(i0), chainBuilders[1].at(i1));
+      int       insert_len  = 0;
+      int       insert_diff = 0;
       const int pair_pen = pairBuilder.computePairPenalty(
-          insertSizeParameters, readPair, &chainBuilders[0].at(i0), &chainBuilders[1].at(i1), isPair);
+          insertSizeParameters, readPair, &unpaired[0].at(i0), &unpaired[1].at(i1), isPair, insert_len, insert_diff);
       alignments.back().setScore(
           alignments.back()[0].getScore() + alignments.back()[1].getScore() - pair_pen);
       alignments.back().setPotentialScore(
@@ -278,8 +298,8 @@ TEST(PairBuilder, pickBest2)
   const auto best = pairBuilder.pickBest(readPair, alignments, unpaired);
   // unique alignment pair. Both ends get mapq 60
   ASSERT_NE(alignments.end(), best);
-  ASSERT_EQ(1112, best->at(0).getMapq());
-  ASSERT_EQ(10, best->at(1).getMapq());
+  ASSERT_EQ(488, best->at(0).getMapq());
+  ASSERT_EQ(103, best->at(1).getMapq());
 }
 
 TEST(PairBuilder, pickBest3)
@@ -288,7 +308,7 @@ TEST(PairBuilder, pickBest3)
   const short                             mismatch = -1;
   const dragenos::align::SimilarityScores similarityScores(match, mismatch);
   const ReferenceDirDummy                 referenceDir;
-  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 0, 0, 0, false, 50);
+  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50);
 
   const unsigned char reference[] =
       "TCCATCGAGATGGACGCCGTTGGCGCTCTCCGTCTTTCTCCATTGCGTCGTGGCCTTGCTATTGACTCTACTGTAGACATTTTTACTTTTTATGTCCCTCTTATG";
@@ -322,7 +342,7 @@ TEST(PairBuilder, pickBest3)
 
   const InsertSizeParameters insertSizeParameters = {
       32, 486, 410, 332, 486, 14.0708, InsertSizeParameters::Orientation::pe_orient_fr_c};
-  std::array<map::ChainBuilder, 2> chainBuilders;
+  std::array<map::ChainBuilder, 2> chainBuilders{map::ChainBuilder(4.0), map::ChainBuilder(4.0)};
 
   chainBuilders[0].addSeedPosition(SeedPosition(Seed(&readPair[0], 0, 17), 0x2808c, 0), false, false);
   chainBuilders[0].addSeedPosition(SeedPosition(Seed(&readPair[0], 49, 17), 0x280bd, 0), false, false);
@@ -347,11 +367,16 @@ TEST(PairBuilder, pickBest3)
   std::array<Alignments, 2> unpaired;
   Alignment                 a11, a21, a22, a23, a24;
   a11.setScore(66);
+  a11.setCigarOperations(std::string(bases.length(), 'M'));
   a21.setScore(66);
+  a21.setCigarOperations(std::to_string(bases.length()) + "M");
   a22.setScore(61);
+  a22.setCigarOperations(std::to_string(bases.length()) + "M");
   a22.setFlags(align::AlignmentHeader::REVERSE_COMPLEMENT);
   a23.setScore(36);
+  a23.setCigarOperations(std::to_string(bases.length()) + "M");
   a24.setScore(25);
+  a24.setCigarOperations(std::to_string(bases.length()) + "M");
   unpaired[0].append(a11);
   unpaired[1].append(a21);
   unpaired[1].append(a22);
@@ -363,8 +388,10 @@ TEST(PairBuilder, pickBest3)
       alignments.insert(alignments.end(), AlignmentPair(unpaired[0].at(i0), unpaired[1].at(i1)));
       const bool isPair =
           pairMatch(insertSizeParameters, readPair, chainBuilders[0].at(i0), chainBuilders[1].at(i1));
+      int       insert_len  = 0;
+      int       insert_diff = 0;
       const int pair_pen = pairBuilder.computePairPenalty(
-          insertSizeParameters, readPair, &chainBuilders[0].at(i0), &chainBuilders[1].at(i1), isPair);
+          insertSizeParameters, readPair, &unpaired[0].at(i0), &unpaired[1].at(i1), isPair, insert_len, insert_diff);
       alignments.back().setScore(
           alignments.back()[0].getScore() + alignments.back()[1].getScore() - pair_pen);
       alignments.back().setPotentialScore(
@@ -376,8 +403,8 @@ TEST(PairBuilder, pickBest3)
   const auto best = pairBuilder.pickBest(readPair, alignments, unpaired);
   // unique alignment pair. Both ends get mapq 60
   ASSERT_NE(alignments.end(), best);
-  ASSERT_EQ(1174, best->at(0).getMapq());
-  ASSERT_EQ(62, best->at(1).getMapq());
+  ASSERT_EQ(488, best->at(0).getMapq());
+  ASSERT_EQ(155, best->at(1).getMapq());
 }
 
 TEST(PairBuilder, pickBest4)
@@ -386,7 +413,7 @@ TEST(PairBuilder, pickBest4)
   const short                             mismatch = -1;
   const dragenos::align::SimilarityScores similarityScores(match, mismatch);
   const ReferenceDirDummy                 referenceDir;
-  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 0, 0, 0, false, 50);
+  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50);
 
   const unsigned char reference[] =
       "TCCATCGAGATGGACGCCGTTGGCGCTCTCCGTCTTTCTCCATTGCGTCGTGGCCTTGCTATTGACTCTACTGTAGACATTTTTACTTTTTATGTCCCTCTTATG";
@@ -420,7 +447,7 @@ TEST(PairBuilder, pickBest4)
 
   const InsertSizeParameters insertSizeParameters = {
       32, 486, 310, 332, 486, 14.0708, InsertSizeParameters::Orientation::pe_orient_fr_c};
-  std::array<map::ChainBuilder, 2> chainBuilders;
+  std::array<map::ChainBuilder, 2> chainBuilders{map::ChainBuilder(4.0), map::ChainBuilder(4.0)};
 
   chainBuilders[0].addSeedPosition(SeedPosition(Seed(&readPair[0], 0, 17), 0x2808c, 0), false, false);
   chainBuilders[0].addSeedPosition(SeedPosition(Seed(&readPair[0], 49, 17), 0x280bd, 0), false, false);
@@ -445,11 +472,16 @@ TEST(PairBuilder, pickBest4)
   std::array<Alignments, 2> unpaired;
   Alignment                 a11, a21, a22, a23, a24;
   a11.setScore(66);
+  a11.setCigarOperations(std::to_string(bases.length()) + "M");
   a21.setScore(66);
+  a21.setCigarOperations(std::to_string(bases.length()) + "M");
   a22.setScore(61);
+  a22.setCigarOperations(std::to_string(bases.length()) + "M");
   a22.setFlags(align::AlignmentHeader::REVERSE_COMPLEMENT);
   a23.setScore(36);
+  a23.setCigarOperations(std::to_string(bases.length()) + "M");
   a24.setScore(25);
+  a24.setCigarOperations(std::to_string(bases.length()) + "M");
   unpaired[0].append(a11);
   unpaired[1].append(a21);
   unpaired[1].append(a22);
@@ -461,8 +493,10 @@ TEST(PairBuilder, pickBest4)
       alignments.insert(alignments.end(), AlignmentPair(unpaired[0].at(i0), unpaired[1].at(i1)));
       const bool isPair =
           pairMatch(insertSizeParameters, readPair, chainBuilders[0].at(i0), chainBuilders[1].at(i1));
+      int       insert_len  = 0;
+      int       insert_diff = 0;
       const int pair_pen = pairBuilder.computePairPenalty(
-          insertSizeParameters, readPair, &chainBuilders[0].at(i0), &chainBuilders[1].at(i1), isPair);
+          insertSizeParameters, readPair, &unpaired[0].at(i0), &unpaired[1].at(i1), isPair, insert_len, insert_diff);
       alignments.back().setScore(
           alignments.back()[0].getScore() + alignments.back()[1].getScore() - pair_pen);
       alignments.back().setPotentialScore(
@@ -474,6 +508,6 @@ TEST(PairBuilder, pickBest4)
   const auto best = pairBuilder.pickBest(readPair, alignments, unpaired);
   // unique alignment pair. Both ends get mapq 60
   ASSERT_NE(alignments.end(), best);
-  ASSERT_EQ(1122, best->at(0).getMapq());
+  ASSERT_EQ(488, best->at(0).getMapq());
   ASSERT_EQ(51, best->at(1).getMapq());
 }

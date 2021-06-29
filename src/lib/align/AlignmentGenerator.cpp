@@ -28,9 +28,59 @@ void AlignmentGenerator::generateAlignments(
   }
 }
 
-bool AlignmentGenerator::generateAlignment(
-    const ScoreType alnMinScore, const Read& read, const map::SeedChain& seedChain, Alignment& alignment)
+void AlignmentGenerator::updateFetchChain(const Read& read, map::SeedChain& seedChain, Alignment& alignment)
 {
+  const reference::HashtableConfig& hashtableConfig = referenceDir_.getHashtableConfig();
+
+  // only update chain if the alignment is valid
+  const size_t referenceOffset = seedChain.firstReferencePosition();
+  auto         refCoords       = hashtableConfig.convertToReferenceCoordinates(referenceOffset);
+  int          move            = alignment.getPosition() - refCoords.second;
+  if (alignment.isPerfect()) {
+    if (seedChain.isReverseComplement()) {
+      seedChain.clear();
+      seedChain.addSeedPosition(
+          map::SeedPosition(
+              sequences::Seed(&read, read.getLength() - alignment.getCigar().countStartClips() - 1, 1),
+              referenceOffset + move,
+              0),
+          false);
+      //        std::cerr << "between chain update:" << seedChain << " " << alignment << std::endl;
+      seedChain.addSeedPosition(
+          map::SeedPosition(
+              sequences::Seed(&read, alignment.getCigar().countEndClips(), 1),
+              referenceOffset + move + alignment.getRefLen() - 1,
+              0),
+          false);
+      seedChain.setReverseComplement(true);
+    } else {
+      seedChain.clear();
+      seedChain.addSeedPosition(
+          map::SeedPosition(
+              sequences::Seed(&read, alignment.getCigar().countStartClips(), 1), referenceOffset + move, 0),
+          false);
+      seedChain.addSeedPosition(
+          map::SeedPosition(
+              sequences::Seed(&read, read.getLength() - alignment.getCigar().countEndClips() - 1, 1),
+              referenceOffset + move + alignment.getRefLen() - 1,
+              0),
+          false);
+    }
+    seedChain.setPerfect(alignment.isPerfect());
+  }
+}
+
+bool AlignmentGenerator::generateAlignment(
+    const ScoreType alnMinScore, const Read& read, map::SeedChain seedChain, Alignment& alignment)
+{
+  if (seedChain.isFiltered()) {
+    return false;
+  }
+
+  updateFetchChain(read, seedChain, alignment);
+
+  DRAGEN_S_W_FETCH_LOG << seedChain << std::endl;
+
   Database database;
   // TODO: create the database as a vector of unsigned char, 1 base per unsigned char, encoded on 2 bits
   //const auto databaseBegin = referenceDir_.getReference() + seedChain.firstReferencePosition();
@@ -51,7 +101,10 @@ bool AlignmentGenerator::generateAlignment(
   } else {
     // RP: from FZ:
     //    The purpose is to flag it as ineligible to be as final alignment even it is aligned but to a
-    //    implicit decoy sequence
+    //    implicit decoy sequence I believe completely remove the else section should be the same logic
+    //    because the seed would still be the same as in the “holes” on the reference and hence it will be
+    //    flagged in the 0>referenceCordinate.second logic branch To explicitly flag it here would be easier
+    //    to read the code
     alignment.setIneligibilityStatus(true);
     // RP: I was tempted to simply return false from here but according to FZ we still need to perform the s-w
     // alignment.
@@ -72,8 +125,7 @@ bool AlignmentGenerator::generateAlignment(
   const size_t forcedDiagonalMotion = std::max<int>(
       1,
       (seedChain.isReverseComplement() ? (read.getLength() - seedChain.lastReadBase() - 1)
-                                       : seedChain.firstReadBase()) *
-          2);  //10;//1;
+                                       : seedChain.firstReadBase()));  //10;//1;
   static constexpr size_t forcedHorizontalMotion = smithWaterman_.width;
   // initialize the query from the base and the orientation of the seedChain
   const auto& query = read.getBases();
@@ -81,28 +133,41 @@ bool AlignmentGenerator::generateAlignment(
   std::string operations;
   FlagType    flags = !read.getPosition() ? Alignment::FIRST_IN_TEMPLATE : Alignment::LAST_IN_TEMPLATE;
   {
-    const ScoreType score = smithWaterman_.align(
-        query.data(),
-        query.data() + query.size(),
-        database.data(),
-        database.data() + database.size(),
-        forcedDiagonalMotion,
-        forcedHorizontalMotion,
-        // dragen right-shifts indels for reverse-complement alignments
-        seedChain.isReverseComplement(),
-        operations);
+
+    ScoreType scoreSW;
+    if (vectorizedSW_) {
+      scoreSW = vectorSmithWaterman_.align(
+          query.data(),
+          query.data() + query.size(),
+          database.data(),
+          database.data() + database.size(),
+          seedChain.isReverseComplement(),
+          operations);
+
+    } else {
+      scoreSW = smithWaterman_.align(
+          query.data(),
+          query.data() + query.size(),
+          database.data(),
+          database.data() + database.size(),
+          forcedDiagonalMotion,
+          forcedHorizontalMotion,
+          // dragen right-shifts indels for reverse-complement alignments
+          seedChain.isReverseComplement(),
+          operations);
+    }
+    const ScoreType score = scoreSW;
 
 #ifdef TRACE_SMITH_WATERMAN
     std::cerr << "[SMITH-WATERMAN]\tdb\t" << database << "\n[SMITH-WATERMAN]\tops\t" << operations
-              << "\n[SMITH-WATERMAN]\tquery\t" << Query(query.begin(), query.end())
+              << "\n[SMITH-WATERMAN]\tquery\t"
+              << (seedChain.isReverseComplement() ? Query(query.rbegin(), query.rend())
+                                                  : Query(query.begin(), query.end()))
               << "\trc:" << seedChain.isReverseComplement() << "\tscore:" << score << "("
               << smithWaterman_.getMaxScore() << ")"
-              << "\talnMinScore:" << alnMinScore << std::endl;
+              << "\talnMinScore:" << alnMinScore << "\tfdm:" << forcedDiagonalMotion
+              << "\tfhm:" << forcedHorizontalMotion << std::endl;
 #endif
-
-    if (alnMinScore > score) {
-      return false;
-    }
 
     alignment.setScore(score);
     //    alignment.setPotentialScore(score); // no more improvement to expect
@@ -153,6 +218,10 @@ bool AlignmentGenerator::generateAlignment(
   //    alignment.setReferenceName(std::string(hashtableConfig.getSequenceNames()[referenceCoordinates.first]));
   alignment.setReference(referenceCoordinates.first);
   alignment.setPosition(referenceCoordinates.second);
+
+  if (alnMinScore > alignment.getScore()) {
+    alignment.setUnmapped();
+  }
 
   // debug info
 #ifdef TRACE_ALIGNMENTS

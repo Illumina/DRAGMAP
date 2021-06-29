@@ -81,6 +81,9 @@ DragenOsOptions::DragenOsOptions() : refDir_("./"), inputFile1_(""), inputFile2_
           "Aligner.sw-all",
           bpo::value<int>(&swAll_)->default_value(swAll_),
           "Value of 1 forces smith waterman on all candidate alignments")(
+          "Aligner.sw-method",
+          bpo::value<std::string>(&methodSmithWaterman_)->default_value(methodSmithWaterman_),
+          "Smith Waterman implementation (dragen / mengyao  default = dragen)")(
           "map-only",
           bpo::value<bool>(&mapOnly_)->default_value(mapOnly_),
           "no real alignment, produces alignment information based on seed chains only")(
@@ -111,6 +114,9 @@ DragenOsOptions::DragenOsOptions() : refDir_("./"), inputFile1_(""), inputFile2_
           "pe-stats-interval-delay",
           bpo::value<uint8_t>(&peStatsIntervalDelay_)->default_value(peStatsIntervalDelay_),
           "Number of intervals of lag between sending reads and using resulting stats")(
+          "Mapper.filter-len-ratio",
+          bpo::value<double>(&mapperFilterLenRatio_)->default_value(mapperFilterLenRatio_),
+          "Ratio for controlling seed chain filtering")(
           "Aligner.pe-orientation",
           bpo::value<unsigned>(&alignerPeOrientation_),
           "Expected paired-end orientation: 0=FR, 1=RF, 2=FF")(
@@ -119,7 +125,11 @@ DragenOsOptions::DragenOsOptions() : refDir_("./"), inputFile1_(""), inputFile2_
           "For tuning the rescue scan window")(
           "Aligner.rescue-ceil-factor",
           bpo::value<double>(&alignerResqueCeilFactor_)->default_value(alignerResqueCeilFactor_),
-          "For tuning the rescue scan window maximum ceiling")
+          "For tuning the rescue scan window maximum ceiling")(
+          "num-threads",
+          bpo::value<decltype(mapperNumThreads_)>(&mapperNumThreads_)
+              ->default_value(std::thread::hardware_concurrency()),
+          "Worker threads for mapper/aligner (default = maximum available on system)")
 
           ("Aligner.sec-aligns",
            bpo::value<int>(&alignerSecAligns_)->default_value(alignerSecAligns_),
@@ -210,34 +220,12 @@ DragenOsOptions::DragenOsOptions() : refDir_("./"), inputFile1_(""), inputFile2_
                           "ht-mem-limit",
                           bpo::value<decltype(htMemLimit_)>(&htMemLimit_)->default_value(htMemLimit_),
                           "Memory limit (hash table + reference)")(
-                          "ht-alt-liftover",
-                          bpo::value<decltype(htAltLiftover_)>(&htAltLiftover_)
-                              ->default_value(htAltLiftover_),
-                          "SAM format liftover file of alternate contigs in reference")
-      //        ("ht-build-rna-hashtable",
-      //        bpo::value<decltype(htBuildRnaHashtable)>(&htBuildRnaHashtable)->default_value(htBuildRnaHashtable),
-      //          "Build the RNA hash table")
-      ("ht-alt-aware-validate",
-       bpo::value<decltype(htAltAwareValidate_)>(&htAltAwareValidate_),
-       "If ref is hg19/hg38, validate that it is/was built with liftover (default: true)")(
-          "ht-decoys",
-          bpo::value<decltype(htDecoys_)>(&htDecoys_)->default_value(htDecoys_),
-          "Path to decoys file (FASTA format) - defaults to FASTA in /opt/edico/liftover")(
-          "ht-suppress-decoys",
-          bpo::value<decltype(htSuppressDecoys_)>(&htSuppressDecoys_)->default_value(htSuppressDecoys_),
-          "Don't include any decoys when building hash table")(
-          "ht-pop-alt-contigs",
-          bpo::value<decltype(htPopAltContigs_)>(&htPopAltContigs_)->default_value(htPopAltContigs_),
-          "Population based alternate contigs file (FASTA format)")(
-          "ht-pop-alt-liftover",
-          bpo::value<decltype(htPopAltLiftover_)>(&htPopAltLiftover_)->default_value(htPopAltLiftover_),
-          "Population based SAM format liftover file of alternate contigs in reference")(
-          "ht-pop-snps",
-          bpo::value<decltype(htPopSnps_)>(&htPopSnps_)->default_value(htPopSnps_),
-          "Population based SNPs file (VCF format)")(
-          "ht-mask-bed",
-          bpo::value<decltype(htMaskBed_)>(&htMaskBed_)->default_value(htMaskBed_),
-          "Bed file for base masking")
+                          "ht-decoys",
+                          bpo::value<decltype(htDecoys_)>(&htDecoys_)->default_value(htDecoys_),
+                          "Path to decoys file (FASTA format)")(
+                          "ht-mask-bed",
+                          bpo::value<decltype(htMaskBed_)>(&htMaskBed_)->default_value(htMaskBed_),
+                          "Bed file for base masking")
 
       // Hashtable internal parameters
       ("ht-pri-max-seed-freq",
@@ -307,7 +295,8 @@ void DragenOsOptions::postProcess(bpo::variables_map& vm)
   }
 
   if (inputFile1_.empty() || !boost::filesystem::is_regular_file(inputFile1_)) {
-    BOOST_THROW_EXCEPTION(InvalidOptionException("fastq-file1 or bam-input must point to an existing fastq file"));
+    BOOST_THROW_EXCEPTION(
+        InvalidOptionException("fastq-file1 or bam-input must point to an existing fastq file"));
   }
 
   if (!inputFile2_.empty() && !boost::filesystem::is_regular_file(inputFile2_)) {

@@ -78,18 +78,21 @@ InsertSizeParameters InsertSizeDistribution::getInsertSizeParameters(std::size_t
 {
   InputDbamRecord idr1(r1ReadLen);
   InputDbamRecord idr2;
+  bool            isInitDone = false;
   if (samplingEnabled_) {
     dragenInsertStats_.waitForValidInterval();
     dragenInsertStats_.saveForRemapping(idr1);
     // this one turns out to collect the total number of bases in order to compute
     // the average read length. This process completely ignores read 2. Don't know why
     dragenInsertStats_.fillPeInsertStats(idr1);
+    isInitDone = dragenInsertStats_.isInitDone();
     // There is a tricky interplay between saveForRemapping and fillPeInsertStats
     // saveForRemapping sets state to WAITING, but fillPeInsertStats fails assertion
     // if state is WAITING. So, a dummy R2 record is needed to trigger WAITING state
     // without calling fillPeInsertStats
     dragenInsertStats_.saveForRemapping(idr2);
   } else {
+    isInitDone = true;
     fixedStats_.fillPeInsertStats(idr1);
   }
   const InsertSizeParameters ret(
@@ -99,15 +102,16 @@ InsertSizeParameters InsertSizeDistribution::getInsertSizeParameters(std::size_t
       idr1.getInsertStats()->rescueMinInsert,
       idr1.getInsertStats()->rescueMaxInsert,
       idr1.getInsertStats()->insertSigmaFactor,
-      static_cast<InsertSizeParameters::Orientation>(idr1.getInsertStats()->peOrientation));
-
+      static_cast<InsertSizeParameters::Orientation>(idr1.getInsertStats()->peOrientation),
+      isInitDone);
   return ret;
 }
 
-void InsertSizeDistribution::add(const align::SerializedAlignment& aln)
+void InsertSizeDistribution::add(
+    const align::SerializedAlignment& aln, const dragenos::sequences::SerializedRead& read)
 {
   if (samplingEnabled_) {
-    const DbamHeader dbh(aln);
+    const DbamHeader dbh(aln, read);
     dragenInsertStats_.sample(&dbh);
   }
 }

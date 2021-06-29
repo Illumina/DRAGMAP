@@ -53,6 +53,8 @@ public:
   static constexpr unsigned                    MAX_RADIUS      = 5;
   static constexpr unsigned                    OLD             = 9;  // 16 base, LARGE_QUANTIZED
   static constexpr unsigned                    ANCIENT         = 31;
+
+  static constexpr unsigned DIAG_HALF_BIN_SIZE = 256;
   /// default constructor: not reverse complement, assume only random samples
   SeedChain() : reverseComplement_(false), randomSamplesOnly_(true) {}
 
@@ -67,10 +69,11 @@ public:
     filtered_          = false;
     needRescue_        = true;
     extra_             = false;
+    coverage_          = 0;
     firstReadBase_     = std::numeric_limits<uint32_t>::max();
     lastReadBase_      = std::numeric_limits<uint32_t>::min();
-    firstRefBase_      = std::numeric_limits<uint32_t>::max();
-    lastRefBase_       = std::numeric_limits<uint32_t>::min();
+    firstChainRefBase_ = std::numeric_limits<uint32_t>::max();
+    lastChainRefBase_  = std::numeric_limits<uint32_t>::min();
 
     firstSeedReferencePosition_ = std::numeric_limits<uint32_t>::max();
     lastSeedReferencePosition_  = std::numeric_limits<uint32_t>::min();
@@ -126,14 +129,19 @@ public:
   /// checks if the new seed would make ancient all existing elements of the chain
   bool terminates(const Seed& seed) const;
 
-  ReferencePosition firstSeedReferencePosition() const { return firstSeedReferencePosition_; }
-  ReferencePosition lastSeedReferencePosition() const { return lastSeedReferencePosition_; }
-  void              updateSeedRefPosition(const SeedPosition& a);
+  ReferencePosition firstSeedReferencePosition() const
+  {
+    return reverseComplement_ ? lastSeedReferencePosition_ : firstSeedReferencePosition_;
+  }
+  ReferencePosition lastSeedReferencePosition() const
+  {
+    return reverseComplement_ ? firstSeedReferencePosition_ : lastSeedReferencePosition_;
+  }
 
   /// smallest diagonal across all seeds in the chain
-  ReferencePosition firstReferencePosition() const { return firstRefBase_; }
+  ReferencePosition firstReferencePosition() const { return firstChainRefBase_; }
   /// rightmost base position projected across all the seeds in the chain
-  ReferencePosition lastReferencePosition() const { return lastRefBase_; }
+  ReferencePosition lastReferencePosition() const { return lastChainRefBase_; }
   /// offset of the closest base to the beginning of the read that is covered by a seed (primary or extension
   /// wings)
   unsigned getLength() const
@@ -142,9 +150,6 @@ public:
                ? lastReferencePosition() - firstReferencePosition()
                : 0;
   }
-
-  /// update first and last read base
-  void updateRefBase(const SeedPosition& a);
 
   /// offset of the closest base to the beginning of the read that is covered by a seed (primary or extension
   /// wings)
@@ -163,6 +168,9 @@ public:
   }
   /// coverage of the seed chain spanning over the read
   unsigned getReadCovLength() const { return coverage_; }
+
+  /// update first and last read base
+  void updateRefBase(const SeedPosition& a);
   /// update first and last read base
   void updateReadBase(const SeedPosition& a);
 
@@ -172,7 +180,6 @@ public:
   {
     updateReadBase(seedPosition);
     updateRefBase(seedPosition);
-    updateSeedRefPosition(seedPosition);
     updateDiagonalTable(seedPosition);
   }
 
@@ -181,11 +188,14 @@ public:
     boost::io::ios_flags_saver ifs(os);
     return os << "CHAIN:"
               << " RC=" << chain.isReverseComplement() << ", qryPos1=" << chain.firstReadBase()
-              << ", qryPos2=" << chain.lastReadBase() << ", refPos1=" << std::hex << "0x" << std::uppercase
-              << std::setw(9) << std::setfill('0') << chain.firstSeedReferencePosition() << ", refPos2="
-              << "0x" << std::setw(9) << chain.lastSeedReferencePosition() << ", perf=" << chain.isPerfect()
-              << ", diag=" << chain.initialDiagonal_ << ", filt=" << chain.isFiltered()
-              << ", resc=" << chain.needRescue() << ", cov=" << std::dec << chain.getReadCovLength();
+              << ", qryPos2=" << chain.lastReadBase() << ", refPos1=0x" << std::hex << std::uppercase
+              << std::setw(9) << std::setfill('0')
+              << chain.firstSeedReferencePosition()  //<< ", " << chain.firstChainRefBase_
+              << ", refPos2=0x" << std::setw(9)
+              << chain.lastSeedReferencePosition()  //<< ", " << chain.lastChainRefBase_
+              << ", perf=" << chain.isPerfect() << ", diag=" << chain.initialDiagonal_
+              << ", filt=" << chain.isFiltered() << ", resc=" << chain.needRescue() << ", cov=" << std::dec
+              << chain.getReadCovLength();
   }
 
   bool isPerfect() const { return perfectAlignment_; }
@@ -206,7 +216,7 @@ private:
   /// false if there is at least one non-random-sample in the chain
   bool                         randomSamplesOnly_;
   std::vector<SeedPosition>    seedPositions_;
-  std::map<uint32_t, uint32_t> diagonalTable_;
+  std::map<uint32_t, uint32_t> diagonalTable_;  // k:diagonal v:lastSeedOffset
 
   uint32_t initialDiagonal_  = 0;
   bool     perfectAlignment_ = true;
@@ -217,10 +227,10 @@ private:
   uint32_t coverage_ = 0;
 
   /// tmp variables
-  uint32_t firstReadBase_ = std::numeric_limits<uint32_t>::max();
-  uint32_t lastReadBase_  = std::numeric_limits<uint32_t>::min();
-  uint32_t firstRefBase_  = std::numeric_limits<uint32_t>::max();
-  uint32_t lastRefBase_   = std::numeric_limits<uint32_t>::min();
+  uint32_t firstReadBase_     = std::numeric_limits<uint32_t>::max();
+  uint32_t lastReadBase_      = std::numeric_limits<uint32_t>::min();
+  uint32_t firstChainRefBase_ = std::numeric_limits<uint32_t>::max();
+  uint32_t lastChainRefBase_  = std::numeric_limits<uint32_t>::min();
 
   uint32_t firstSeedReferencePosition_ = std::numeric_limits<uint32_t>::max();
   uint32_t lastSeedReferencePosition_  = std::numeric_limits<uint32_t>::min();

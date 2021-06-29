@@ -19,9 +19,9 @@
 
 #include <fcntl.h>
 #include <sys/mman.h>
-
 #include "common/DragenLogger.hpp"
 #include "common/Exceptions.hpp"
+#include "ssw/ssw_cpp.h"
 
 #include "align/Aligner.hpp"
 #include "align/CalculateRefStartEnd.hpp"
@@ -44,10 +44,13 @@ Aligner::Aligner(
     const int                      gapExtend,
     const int                      unclipScore,
     const int                      alnMinScore,
-    const uint32_t                 aln_cfg_unpaired_pen)
+    const uint32_t                 aln_cfg_unpaired_pen,
+    const double                   aln_cfg_filter_len_ratio,
+    const bool                     vectorizedSW)
   : referenceDir_(referenceDir),
     mapOnly_(mapOnly),
     swAll_(swAll),
+    vectorizedSW_(vectorizedSW),
     mapper_(&hashtable),
     similarity_(similarity),
     gapInit_(gapInit),
@@ -56,7 +59,9 @@ Aligner::Aligner(
     alnMinScore_(alnMinScore),
     aln_cfg_unpaired_pen_(aln_cfg_unpaired_pen),
     smithWaterman_(similarity, gapInit, gapExtend, unclipScore),
-    alignmentGenerator_(referenceDir_, smithWaterman_)
+    vectorSmithWaterman_(similarity, gapInit, gapExtend, unclipScore),
+    alignmentGenerator_(referenceDir_, smithWaterman_, vectorSmithWaterman_, vectorizedSW_),
+    chainBuilders_{map::ChainBuilder(aln_cfg_filter_len_ratio), map::ChainBuilder(aln_cfg_filter_len_ratio)}
 {
 }
 
@@ -107,50 +112,11 @@ void Aligner::generateUngappedAlignments(
   }
 }
 
-void removeDuplicates(Alignments& alignments)
-{
-  std::sort(alignments.begin(), alignments.end(), [](const Alignment& left, const Alignment& right) {
-    return left.getUnclippedEndPosition() < right.getUnclippedEndPosition() ||
-           (left.getUnclippedEndPosition() == right.getUnclippedEndPosition() &&
-            (left.isReverseComplement() < right.isReverseComplement() ||
-             (left.isReverseComplement() == right.isReverseComplement() &&
-              left.getScore() > right.getScore())));
-  });
-
-  alignments.erase(
-      std::unique(
-          alignments.begin(),
-          alignments.end(),
-          [](const Alignment& left, const Alignment& right) {
-            return left.getUnclippedEndPosition() == right.getUnclippedEndPosition() &&
-                   left.isReverseComplement() == right.isReverseComplement();
-          }),
-      alignments.end());
-
-  std::sort(alignments.begin(), alignments.end(), [](const Alignment& left, const Alignment& right) {
-    return left.getUnclippedStartPosition() < right.getUnclippedStartPosition() ||
-           (left.getUnclippedStartPosition() == right.getUnclippedStartPosition() &&
-            (left.isReverseComplement() < right.isReverseComplement() ||
-             (left.isReverseComplement() == right.isReverseComplement() &&
-              left.getScore() > right.getScore())));
-  });
-
-  alignments.erase(
-      std::unique(
-          alignments.begin(),
-          alignments.end(),
-          [](const Alignment& left, const Alignment& right) {
-            return left.getUnclippedStartPosition() == right.getUnclippedStartPosition() &&
-                   left.isReverseComplement() == right.isReverseComplement();
-          }),
-      alignments.end());
-}
-
 void Aligner::runSmithWatermanAll(
     const Read& read, const map::ChainBuilder& chainBuilder, Alignments& alignments)
 {
   for (int i = 0; i < chainBuilder.size(); ++i) {
-    alignmentGenerator_.generateAlignment(0, read, chainBuilder.at(i), alignments.at(i));
+    alignmentGenerator_.generateAlignment(alnMinScore_, read, chainBuilder.at(i), alignments.at(i));
   }
 
   ////  if (DEBUG_FILES)
@@ -163,7 +129,12 @@ void Aligner::generateUngappedAlignment(const Read& read, map::SeedChain& seedCh
 {
   FlagType flags = !read.getPosition() ? Alignment::FIRST_IN_TEMPLATE : Alignment::LAST_IN_TEMPLATE;
   flags |= seedChain.isReverseComplement() ? Alignment::REVERSE_COMPLEMENT : 0;
+  flags |= seedChain.isFiltered() ? Alignment::UNMAPPED : 0;
   alignment.resetFlags(flags);
+  if (seedChain.isFiltered()) {
+    return;
+  }
+
   const size_t referenceOffset = seedChain.firstReferencePosition();
 
   int move =
@@ -171,15 +142,25 @@ void Aligner::generateUngappedAlignment(const Read& read, map::SeedChain& seedCh
 
   if (alnMinScore_ > alignment.getScore()) {
     alignment.setUnmapped();
+  } else {
+    alignment.setPerfect(seedChain.isPerfect());
   }
-  // TODO: calculate score
-  alignment.setPerfect(seedChain.isPerfect());
-  //  alignment.setPerfect(alignment.getCigar().getClippedLength() == read.getLength());
 
 #ifdef TRACE_ALIGNMENTS
   std::cerr << "[ALIGNMENT]\t"
             << "ungapped" << read.getPosition() << "\t" << alignment << std::endl;
 #endif
+}
+
+void Aligner::deFilterChain(const Read& read, map::SeedChain& seedChain, Alignment& alignment)
+{
+  if (seedChain.isFiltered()) {
+    seedChain.setFiltered(false);
+    generateUngappedAlignment(read, seedChain, alignment);
+    if (swAll_) {
+      alignmentGenerator_.generateAlignment(alnMinScore_, read, seedChain, alignment);
+    }
+  }
 }
 
 unsigned Aligner::calculatePotentialScore(
@@ -324,6 +305,25 @@ int Aligner::initializeUngappedAlignmentScores(
   return bestFirst;
 }
 
+void Aligner::runSmithWatermanWorthy(
+    const Read& read, map::ChainBuilder& chainBuilder, Alignments& alignments)
+{
+  int               bestScore = 0;
+  const std::size_t toTry     = alignments.size();
+  for (unsigned i = 0; toTry > i; ++i) {
+    auto&       alignment = alignments.at(i);
+    const auto& seedChain = chainBuilder.at(i);
+    if ((!alignment.isPerfect()) || (alignment.getPotentialScore() >= bestScore)) {
+      if (alignment.isPerfect() && alignment.getScore() > bestScore) {
+        bestScore = alignment.getScore();
+      }
+      if (alignment.getPotentialScore() > alignment.getScore()) {
+        alignmentGenerator_.generateAlignment(alnMinScore_, read, seedChain, alignment);
+      }
+    }
+  }
+}
+
 void Aligner::getAlignments(const Read& read, Alignments& alignments)
 {
   alignments.clear();
@@ -332,26 +332,11 @@ void Aligner::getAlignments(const Read& read, Alignments& alignments)
   mapper_.getPositionChains(read, chainBuilder);
 
   if (0 != chainBuilder.size()) {
-    int bestScore = 0;
     buildUngappedAlignments(chainBuilder, read, alignments);
     if (swAll_) {
       runSmithWatermanAll(read, chainBuilder, alignments);
     } else {
-      assert(chainBuilder.size() == alignments.size());
-      const std::size_t toTry = alignments.size();
-      for (unsigned i = 0; toTry > i; ++i) {
-        auto&       alignment = alignments.at(i);
-        const auto& seedChain = chainBuilder.at(i);
-        if ((!alignment.isPerfect()) || (alignment.getPotentialScore() >= bestScore)) {
-          if (alignment.isPerfect() && alignment.getScore() > bestScore) {
-            bestScore = alignment.getScore();
-          }
-
-          if (alignment.getPotentialScore() > alignment.getScore()) {
-            alignmentGenerator_.generateAlignment(0, read, seedChain, alignment);
-          }
-        }
-      }
+      runSmithWatermanWorthy(read, chainBuilder, alignments);
     }
   }
 }
@@ -367,12 +352,7 @@ bool Aligner::rescueMate(
     Alignment&                  rescuedAlignment)
 {
   if (alignmentRescue.scan(
-          anchoredRead,
-          rescuedRead,
-          anchoredSeedChain,
-          anchoredAlignment,
-          referenceDir_.getReferenceSequence(),
-          rescuedSeedChain)) {
+          rescuedRead, anchoredSeedChain, referenceDir_.getReferenceSequence(), rescuedSeedChain)) {
     //          std::cerr << "rescued:" << rescuedSeedChain << std::endl;
     if (alignmentGenerator_.generateAlignment(
             alnMinScore_, rescuedRead, rescuedSeedChain, rescuedAlignment)) {
@@ -407,16 +387,22 @@ void Aligner::makePair(
     AlignmentPairs&             alignmentPairs)
 {
   alignmentPairs.insert(alignmentPairs.end(), AlignmentPair(a0, a1));
-  const bool properPair =
-      s0 && s1 ? pairMatch(insertSizeParameters, alignmentPairs.back()[0], alignmentPairs.back()[1]) : false;
+  AlignmentPair& pair       = alignmentPairs.back();
+  const bool     properPair = s0 && s1 ? pairMatch(insertSizeParameters, pair[0], pair[1]) : false;
   //  const bool properPair = s0 && s1 ? pairMatch(insertSizeParameters, readPair, *s0, *s1) : false;
-  const int pair_pen = pairBuilder.computePairPenalty(insertSizeParameters, readPair, s0, s1, properPair);
-  alignmentPairs.back().setScore(
-      alignmentPairs.back()[0].getScore() + alignmentPairs.back()[1].getScore() - pair_pen);
-  alignmentPairs.back().setPotentialScore(
-      alignmentPairs.back()[0].getPotentialScore() + alignmentPairs.back()[1].getPotentialScore() - pair_pen);
-  alignmentPairs.back().setSeedChains(s0, s1);
-  alignmentPairs.back().setProperPair(properPair);
+  int       insert_len  = 0;
+  int       insert_diff = 0;
+  const int pair_pen    = pairBuilder.computePairPenalty(
+      insertSizeParameters, readPair, &a0, &a1, properPair, insert_len, insert_diff);
+  pair.setScore(pair[0].getScore() + pair[1].getScore() - pair_pen);
+  pair.setPotentialScore(pair[0].getPotentialScore() + pair[1].getPotentialScore() - pair_pen);
+  pair.setSeedChains(s0, s1);
+  pair.setProperPair(properPair);
+
+  DRAGEN_ALN_RESULT_LOG << "PAIR_RESULT:"
+                        << " type=" << (!properPair ? "se_pair" : "paired") << ", paired=" << properPair
+                        << ", insert_len=" << insert_len << ", insert_diff=" << insert_diff
+                        << ", pair_pen=" << pair_pen << ", pair_score=" << pair.getScore() << std::endl;
 }
 
 int findBest(const Alignments& alignments)
@@ -443,11 +429,11 @@ bool Aligner::rescuePair(
     const AlignmentRescue       alignmentRescue,
     AlignmentPairs&             alignmentPairs)
 {
-  const int   rescuedIdx   = !anchoredIdx;
-  const Read& anchoredRead = readPair.at(anchoredIdx);
-  if (alignmentRescue.triggeredBy(anchoredRead, anchoredSeedChain, any_pair_match)) {
-    const Read&    rescuedRead = readPair.at(rescuedIdx);
+  if (alignmentRescue.triggeredBy(anchoredSeedChain, any_pair_match)) {
     map::SeedChain rescuedSeedChain;
+    const int      rescuedIdx   = !anchoredIdx;
+    const Read&    rescuedRead  = readPair.at(rescuedIdx);
+    const Read&    anchoredRead = readPair.at(anchoredIdx);
 
     Alignment rescued;
     if (rescueMate(
@@ -508,11 +494,13 @@ AlignmentPairs::iterator Aligner::getAlignments(
     runSmithWatermanAll(readPair[1], chainBuilders_[1], unpairedAlignments_[1]);
   }
 
-  const auto bestOffset0 = findBest(unpairedAlignments_[0]);
-  const auto bestOffset1 = findBest(unpairedAlignments_[1]);
+  int bestOffset0 = findBest(unpairedAlignments_[0]);
+  int bestOffset1 = findBest(unpairedAlignments_[1]);
+  assert(-1 == bestOffset0 || !chainBuilders_[0].at(bestOffset0).isFiltered());
+  assert(-1 == bestOffset1 || !chainBuilders_[1].at(bestOffset1).isFiltered());
 
   const AlignmentRescue alignmentRescue(
-      insertSizeParameters.min_, insertSizeParameters.max_, insertSizeParameters.orientation_);
+      insertSizeParameters.rescueMin_, insertSizeParameters.rescueMax_, insertSizeParameters.orientation_);
 
   ScoreType bestPairedScore = 0;
 
@@ -523,24 +511,30 @@ AlignmentPairs::iterator Aligner::getAlignments(
   pairsFound[0].resize(unpairedAlignments_[0].size(), false);
   pairsFound[1].resize(unpairedAlignments_[1].size(), false);
 
+  //  std::cerr << "pairsFound[0].size():" << pairsFound[0].size() << std::endl;
+  //  std::cerr << "pairsFound[1].size():" << pairsFound[1].size() << std::endl;
   // find all combinations from seeds
   for (unsigned i0 = 0; pairsFound[0].size() > i0; ++i0) {
+    auto& chain0 = chainBuilders_[0].at(i0);
     for (unsigned i1 = 0; pairsFound[1].size() > i1; ++i1) {
-      const bool hasBestUnpaired = ((bestOffset0 == i0) || (bestOffset1 == i1));
-      const bool isPair =
-          pairMatch(insertSizeParameters, readPair, chainBuilders_[0].at(i0), chainBuilders_[1].at(i1));
+      auto&      chain1 = chainBuilders_[1].at(i1);
+      const bool hasBestUnpaired =
+          !chain0.isFiltered() && !chain1.isFiltered() && ((bestOffset0 == i0) || (bestOffset1 == i1));
+      const bool isPair = pairMatch(insertSizeParameters, readPair, chain0, chain1);
       if (isPair) {
-        pairsFound[0][i0] = true;
-        pairsFound[1][i1] = true;
-        any_pair_match    = true;
+        pairsFound[0].at(i0) = true;
+        pairsFound[1].at(i1) = true;
+        any_pair_match |= !chain0.hasOnlyRandomSamples() && !chain1.hasOnlyRandomSamples();
+        deFilterChain(readPair.at(0), chain0, unpairedAlignments_[0].at(i0));
+        deFilterChain(readPair.at(1), chain1, unpairedAlignments_[1].at(i1));
       }
       if (hasBestUnpaired || isPair) {
         makePair(
             insertSizeParameters,
             readPair,
             pairBuilder,
-            &chainBuilders_[0].at(i0),
-            &chainBuilders_[1].at(i1),
+            &chain0,
+            &chain1,
             unpairedAlignments_[0].at(i0),
             unpairedAlignments_[1].at(i1),
             alignmentPairs);
@@ -553,145 +547,163 @@ AlignmentPairs::iterator Aligner::getAlignments(
     }
   }
 
-  // rescue for those that did not make any seed pairs
-  for (unsigned i0 = 0; pairsFound[0].size() > i0; ++i0) {
-    if (!pairsFound[0][i0]) {
-      const auto& anchoredSeedChain = chainBuilders_[0].at(i0);
-      auto&       anchoredAlignment = unpairedAlignments_[0].at(i0);
+  if (insertSizeParameters.isInitDone()) {
+    // rescue for those that did not make any seed pairs
+    for (unsigned i0 = 0; pairsFound[0].size() > i0; ++i0) {
+      if (!pairsFound[0][i0]) {
+        const auto& anchoredSeedChain = chainBuilders_[0].at(i0);
+        auto&       anchoredAlignment = unpairedAlignments_[0].at(i0);
 
-      if (rescuePair(
-              insertSizeParameters,
-              pairBuilder,
-              readPair,
-              0,
-              any_pair_match,
-              anchoredSeedChain,
-              anchoredAlignment,
-              alignmentRescue,
-              alignmentPairs)) {
-        pairsFound[0][i0] = true;
-        bestPairedScore   = std::max(bestPairedScore, alignmentPairs.back().getScore());
+        if (!anchoredSeedChain.isFiltered() && rescuePair(
+                                                   insertSizeParameters,
+                                                   pairBuilder,
+                                                   readPair,
+                                                   0,
+                                                   any_pair_match,
+                                                   anchoredSeedChain,
+                                                   anchoredAlignment,
+                                                   alignmentRescue,
+                                                   alignmentPairs)) {
+          pairsFound[0][i0] = true;
+          bestPairedScore   = std::max(bestPairedScore, alignmentPairs.back().getScore());
 #ifdef TRACE_ALIGNMENTS
-        std::cerr << "[ALIGNMENT]\trescued0\t" << alignmentPairs.back() << std::endl;
+          std::cerr << "[ALIGNMENT]\trescued0\t" << alignmentPairs.back() << std::endl;
 #endif
+        }
       }
     }
-  }
 
-  for (unsigned i1 = 0; pairsFound[1].size() > i1; ++i1) {
-    if (!pairsFound[1][i1]) {
-      const auto& anchoredSeedChain = chainBuilders_[1].at(i1);
-      auto&       anchoredAlignment = unpairedAlignments_[1].at(i1);
-      if (rescuePair(
-              insertSizeParameters,
-              pairBuilder,
-              readPair,
-              1,
-              any_pair_match,
-              anchoredSeedChain,
-              anchoredAlignment,
-              alignmentRescue,
-              alignmentPairs)) {
-        pairsFound[1][i1] = true;
-        bestPairedScore   = std::max(bestPairedScore, alignmentPairs.back().getScore());
+    for (unsigned i1 = 0; pairsFound[1].size() > i1; ++i1) {
+      if (!pairsFound[1][i1]) {
+        const auto& anchoredSeedChain = chainBuilders_[1].at(i1);
+        auto&       anchoredAlignment = unpairedAlignments_[1].at(i1);
+        if (!anchoredSeedChain.isFiltered() && rescuePair(
+                                                   insertSizeParameters,
+                                                   pairBuilder,
+                                                   readPair,
+                                                   1,
+                                                   any_pair_match,
+                                                   anchoredSeedChain,
+                                                   anchoredAlignment,
+                                                   alignmentRescue,
+                                                   alignmentPairs)) {
+          pairsFound[1][i1] = true;
+          bestPairedScore   = std::max(bestPairedScore, alignmentPairs.back().getScore());
 #ifdef TRACE_ALIGNMENTS
-        std::cerr << "[ALIGNMENT]\trescued1\t" << alignmentPairs.back() << std::endl;
+          std::cerr << "[ALIGNMENT]\trescued1\t" << alignmentPairs.back() << std::endl;
 #endif
+        }
       }
     }
   }
 
   // look into new combinations that became available
-  for (unsigned i0 = 0; pairsFound[0].size() > i0; ++i0) {
-    if (!pairsFound[0][i0]) {
-      for (unsigned i1 = pairsFound[1].size(); unpairedAlignments_[1].size() > i1; ++i1) {
-        makePair(
-            insertSizeParameters,
-            readPair,
-            pairBuilder,
-            0,
-            0,
-            unpairedAlignments_[0].at(i0),
-            unpairedAlignments_[1].at(i1),
-            alignmentPairs);
-        bestPairedScore = std::max(bestPairedScore, alignmentPairs.back().getScore());
+  if (-1 != bestOffset0) {
+    const int i0 = bestOffset0;
+    for (unsigned i1 = pairsFound[1].size(); unpairedAlignments_[1].size() > i1; ++i1) {
+      makePair(
+          insertSizeParameters,
+          readPair,
+          pairBuilder,
+          0,
+          0,
+          unpairedAlignments_[0].at(i0),
+          unpairedAlignments_[1].at(i1),
+          alignmentPairs);
+      bestPairedScore = std::max(bestPairedScore, alignmentPairs.back().getScore());
 #ifdef TRACE_ALIGNMENTS
-        std::cerr << "[ALIGNMENT]\tremains0\t" << alignmentPairs.back() << std::endl;
+      std::cerr << "[ALIGNMENT]\tremains0\t" << alignmentPairs.back() << std::endl;
 #endif
-      }
     }
   }
 
-  for (unsigned i1 = 0; pairsFound[1].size() > i1; ++i1) {
-    if (!pairsFound[1][i1]) {
-      for (unsigned i0 = pairsFound[0].size(); unpairedAlignments_[0].size() > i0; ++i0) {
-        makePair(
-            insertSizeParameters,
-            readPair,
-            pairBuilder,
-            0,
-            0,
-            unpairedAlignments_[0].at(i0),
-            unpairedAlignments_[1].at(i1),
-            alignmentPairs);
-        bestPairedScore = std::max(bestPairedScore, alignmentPairs.back().getScore());
+  if (-1 != bestOffset1) {
+    const int i1 = bestOffset1;
+    for (unsigned i0 = pairsFound[0].size(); unpairedAlignments_[0].size() > i0; ++i0) {
+      makePair(
+          insertSizeParameters,
+          readPair,
+          pairBuilder,
+          0,
+          0,
+          unpairedAlignments_[0].at(i0),
+          unpairedAlignments_[1].at(i1),
+          alignmentPairs);
+      bestPairedScore = std::max(bestPairedScore, alignmentPairs.back().getScore());
 #ifdef TRACE_ALIGNMENTS
-        std::cerr << "[ALIGNMENT]\tremains1\t" << alignmentPairs.back() << std::endl;
+      std::cerr << "[ALIGNMENT]\tremains1\t" << alignmentPairs.back() << std::endl;
 #endif
-      }
     }
   }
 
+  // in case rescues have added something better
+  bestOffset0 = findBest(unpairedAlignments_[0]);
   // make single-ended pairs
   if (-1 != bestOffset0) {
     Alignment&       best0 = unpairedAlignments_[0].at(bestOffset0);
-    align::Alignment unmappedR2(
+    align::Alignment unmappedR1(
         align::AlignmentHeader::MULTIPLE_SEGMENTS | align::AlignmentHeader::UNMAPPED |
-        align::AlignmentHeader::LAST_IN_TEMPLATE);
-    unmappedR2.setReference(best0.getReference());
-    unmappedR2.setNextReference(best0.getReference());
-    unmappedR2.setPosition(best0.getPosition());
-    unmappedR2.setNextPosition(best0.getPosition());
-    unpairedAlignments_[1].append(unmappedR2);
+            align::AlignmentHeader::LAST_IN_TEMPLATE,
+        alnMinScore_);
+    unmappedR1.setReference(best0.getReference());
+    unmappedR1.setNextReference(best0.getReference());
+    unmappedR1.setPosition(best0.getPosition());
+    unmappedR1.setNextPosition(best0.getPosition());
+    unpairedAlignments_[1].append(unmappedR1);
 
-    const double m2a_scale = mapq2aln(similarity_.getSnpCost(), readPair.getLength());
-    const int    pair_pen  = aln_cfg_unpaired_pen_ * m2a_scale;
+    const int m2a_scale = mapq2aln(similarity_.getSnpCost(), readPair.getLength());
+    const int pair_pen  = (aln_cfg_unpaired_pen_ * m2a_scale) >> 10;
     alignmentPairs.push_back(AlignmentPair(
         best0,
-        chainBuilders_[0].at(bestOffset0),
+        chainBuilders_[0].size() > bestOffset0 ? &chainBuilders_[0].at(bestOffset0) : 0,
         unpairedAlignments_[1].back(),
-        best0.getScore() + alnMinScore_ - pair_pen,
-        best0.getPotentialScore() + alnMinScore_ - pair_pen));
+        best0.getScore() + unmappedR1.getScore() - pair_pen,
+        best0.getPotentialScore() + unmappedR1.getScore() - pair_pen));
     bestPairedScore = std::max(bestPairedScore, alignmentPairs.back().getScore());
 #ifdef TRACE_ALIGNMENTS
     std::cerr << "[ALIGNMENT]\tsep0\t" << alignmentPairs.back() << std::endl;
 #endif
+    const AlignmentPair& pair = alignmentPairs.back();
+    DRAGEN_ALN_RESULT_LOG << "PAIR_RESULT:"
+                          << " type="
+                          << "se_pair"
+                          << ", paired=" << 0 << ", pair_pen=" << pair_pen
+                          << ", pair_score=" << pair.getScore() << std::endl;
   }
 
+  // in case rescues have added something better
+  bestOffset1 = findBest(unpairedAlignments_[1]);
   if (-1 != bestOffset1) {
     Alignment& best1 = unpairedAlignments_[1].at(bestOffset1);
 
-    align::Alignment unmappedR1(
+    align::Alignment unmappedR0(
         align::AlignmentHeader::MULTIPLE_SEGMENTS | align::AlignmentHeader::UNMAPPED |
-        align::AlignmentHeader::FIRST_IN_TEMPLATE);
-    unmappedR1.setReference(best1.getReference());
-    unmappedR1.setNextReference(best1.getReference());
-    unmappedR1.setPosition(best1.getPosition());
-    unmappedR1.setNextPosition(best1.getPosition());
-    unpairedAlignments_[0].append(unmappedR1);
+            align::AlignmentHeader::FIRST_IN_TEMPLATE,
+        alnMinScore_);
+    unmappedR0.setReference(best1.getReference());
+    unmappedR0.setNextReference(best1.getReference());
+    unmappedR0.setPosition(best1.getPosition());
+    unmappedR0.setNextPosition(best1.getPosition());
+    unpairedAlignments_[0].append(unmappedR0);
 
-    const double m2a_scale = mapq2aln(similarity_.getSnpCost(), readPair.getLength());
-    const int    pair_pen  = aln_cfg_unpaired_pen_ * m2a_scale;
+    const int m2a_scale = mapq2aln(similarity_.getSnpCost(), readPair.getLength());
+    const int pair_pen  = (aln_cfg_unpaired_pen_ * m2a_scale) >> 10;
     alignmentPairs.push_back(AlignmentPair(
         unpairedAlignments_[0].back(),
         best1,
-        chainBuilders_[1].at(bestOffset1),
-        best1.getScore() + alnMinScore_ - pair_pen,
-        best1.getPotentialScore() + alnMinScore_ - pair_pen));
+        chainBuilders_[1].size() > bestOffset1 ? &chainBuilders_[1].at(bestOffset1) : 0,
+        best1.getScore() + unmappedR0.getScore() - pair_pen,
+        best1.getPotentialScore() + unmappedR0.getScore() - pair_pen));
     bestPairedScore = std::max(bestPairedScore, alignmentPairs.back().getScore());
 #ifdef TRACE_ALIGNMENTS
     std::cerr << "[ALIGNMENT]\tsep1\t" << alignmentPairs.back() << std::endl;
 #endif
+    const AlignmentPair& pair = alignmentPairs.back();
+    DRAGEN_ALN_RESULT_LOG << "PAIR_RESULT:"
+                          << " type="
+                          << "se_pair"
+                          << ", paired=" << 0 << ", pair_pen=" << pair_pen
+                          << ", pair_score=" << pair.getScore() << std::endl;
   }
 
   // when running without sw-all, apply smith-waterman to all that matters
@@ -710,12 +722,25 @@ AlignmentPairs::iterator Aligner::getAlignments(
       // const bool isPair   = pairMatch(insertSizeParameters, readPair, *seedChains[0], *seedChains[1]);
       const bool properPair = pairMatch(insertSizeParameters, alignmentPair[0], alignmentPair[1]);
 
-      const int pair_pen = pairBuilder.computePairPenalty(
-          insertSizeParameters, readPair, seedChains[0], seedChains[1], properPair);
+      int       insert_len  = 0;
+      int       insert_diff = 0;
+      const int pair_pen    = pairBuilder.computePairPenalty(
+          insertSizeParameters,
+          readPair,
+          &alignmentPair[0],
+          &alignmentPair[1],
+          properPair,
+          insert_len,
+          insert_diff);
       alignmentPair.setScore(alignmentPair[0].getScore() + alignmentPair[1].getScore() - pair_pen);
       alignmentPair.setPotentialScore(alignmentPair.getScore());
       alignmentPair.setProperPair(properPair);
       bestPairedScore = std::max(bestPairedScore, alignmentPair.getScore());
+      //      DRAGEN_ALN_RESULT_LOG << "PAIR_RESULT:"
+      //                            << " type=" << (alignmentPair.isSingleEnded() ? "se_pair" : "paired")
+      //                            << ", paired=" << properPair << ", insert_len=" << insert_len
+      //                            << ", insert_diff=" << insert_diff << ", pair_pen=" << pair_pen
+      //                            << ", pair_score=" << alignmentPair.getScore() << std::endl;
     }
   }
 

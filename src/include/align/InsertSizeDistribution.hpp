@@ -51,9 +51,9 @@ public:
       std::ostream& logStream);
   //  const InsertSizeParameters& getInsertSizeParameters() const { return insertSizeParameters_; }
   InsertSizeParameters getInsertSizeParameters(std::size_t r1ReadLen);
-  void                 add(const align::SerializedAlignment& aln);
-  bool                 notGoingToBlock() { return !dragenInsertStats_.justSentAllInitRecords(); }
-  void                 forceInitDoneSending();
+  void add(const align::SerializedAlignment& aln, const dragenos::sequences::SerializedRead& read);
+  bool notGoingToBlock() { return !dragenInsertStats_.justSentAllInitRecords(); }
+  void forceInitDoneSending();
 
   friend std::ostream& operator<<(std::ostream& os, InsertSizeDistribution& d)
   {

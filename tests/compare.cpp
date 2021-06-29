@@ -131,6 +131,11 @@ void makeMismatchFiles(
     const boost::filesystem::path &outputDirectory,
     std::map<std::string, std::shared_ptr<std::ostream>> &tagMismatch) {
   tagMismatch.emplace(
+      tag + std::to_string(Statistics::mapqBin(0)),
+      std::make_shared<std::ofstream>(
+          (outputDirectory / ("tag" + tag + "Mismatch0" + fileSuffix))
+              .string()));
+  tagMismatch.emplace(
       tag + std::to_string(Statistics::mapqBin(1)),
       std::make_shared<std::ofstream>(
           (outputDirectory / ("tag" + tag + "Mismatch1-29" + fileSuffix))
@@ -494,12 +499,12 @@ void compareSingle(
       ++statistics.mapqDirection[mapqBin].first;
     } else {
       ++statistics.mapqDirection[mapqBin].second;
-      const std::string key = "MAPQ" + std::to_string(mapqBin);
-      const auto stream = tagMismatch.find(key);
-      if (tagMismatch.end() != stream) {
-        *stream->second << newRecord.getUnparsed() << std::endl;
-        *tagMismatchReference.at(key) << refRecord.getUnparsed() << std::endl;
-      }
+    }
+    const std::string key = "MAPQ" + std::to_string(mapqBin);
+    const auto stream = tagMismatch.find(key);
+    if (tagMismatch.end() != stream) {
+      *stream->second << newRecord.getUnparsed() << std::endl;
+      *tagMismatchReference.at(key) << refRecord.getUnparsed() << std::endl;
     }
   }
   if (refRecord.getCigar() == newRecord.getCigar()) {

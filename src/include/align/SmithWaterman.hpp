@@ -193,6 +193,7 @@ private:
   //  const C *databaseIt_;
   /// End of the database
   typename std::vector<C>::const_iterator databaseEndIt_;
+  int                                     dbSize_ = 0;
   //  const C *databaseEndIt_;
   /// drift accumulated over the last STEERING_DELAY cycles (+1/-1 for right/down resp)
   ssize_t drift_;
@@ -205,6 +206,11 @@ private:
   void setQuery(const C* queryBegin, const C* queryEnd, bool leftShiftIndels);
   // Note: the database is not copied and must remain valid (including same iterators) while being used
   void setDatabase(const C* databaseBegin, const C* databaseEnd);
+  void setDatabaseSize(int dbSize)
+  {
+    assert(dbSize_ >= dbSize);
+    dbSize_ = dbSize;
+  }
   void buildWavefronts(
       const size_t forcedVerticalMotion,
       const size_t forcedDiagonalMotion,
@@ -216,7 +222,7 @@ private:
   // offset of the bottom left element of antidiagonal in query sequence
   int getQueryOffset() const { return queryOffset_; }
 
-  int getDatabaseSize() const { return reversedRef_.size(); }
+  int getDatabaseSize() const { return dbSize_; }
   // offset of bottom left element of antidiagonal in db sequence
   int getDatabaseOffset() const { return dbOffset_; }
 

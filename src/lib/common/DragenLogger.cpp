@@ -17,6 +17,12 @@
 namespace dragenos {
 namespace common {
 
+std::ofstream& alnResultLog()
+{
+  static std::ofstream log("map_aln_result_proc.log");
+  return log;
+}
+
 std::ofstream& chainLog()
 {
   static std::ofstream log("map_chain_mgr.log");
@@ -32,6 +38,12 @@ std::ofstream& rescueLog()
 std::ofstream& smithWatermanLog()
 {
   static std::ofstream log("map_sw_scores_0_tog.log");
+  return log;
+}
+
+std::ofstream& sWFetchLog()
+{
+  static std::ofstream log("map_sw_fetch_0.log");
   return log;
 }
 

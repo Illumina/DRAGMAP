@@ -74,7 +74,10 @@ public:
   }
   uint32_t getReferenceLength() const;
   int      countStartClips() const;
+  int      countStartHardClips() const;
+
   int      countEndClips() const;
+  int      countEndHardClips() const;
   uint32_t getReferenceLengthPlusEndClips() const;
   uint32_t getClippedLength() const;
   void     softClipsToHardClips();
@@ -87,6 +90,8 @@ public:
   }
 
   bool operator==(const Cigar& that) const { return !(*this != that); }
+
+  bool empty() const { return operations_.empty(); }
 
 private:
   std::vector<Operation> operations_;

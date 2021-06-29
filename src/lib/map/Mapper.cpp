@@ -12,14 +12,14 @@
  **
  **/
 
-#include "map/Mapper.hpp"
-
 #include <boost/format.hpp>
 #include <boost/range/adaptor/reversed.hpp>
 #include <numeric>
 #include <unordered_set>
 
 #include "common/Crc32Hw.hpp"
+#include "common/DragenLogger.hpp"
+#include "map/Mapper.hpp"
 
 namespace dragenos {
 namespace map {
@@ -43,7 +43,7 @@ const char* typeString[17] = {"EMPTY",
                               "",
                               "HIT"};
 // end of debug variables
-#ifdef DEBUG_LOG
+#ifdef TRACE_SEED_CHAINS
 static uint32_t seedOffset = 0;
 #endif
 void Mapper::getPositionChains(const Read& read, ChainBuilder& chainBuilder) const
@@ -63,14 +63,14 @@ void Mapper::getPositionChains(const Read& read, ChainBuilder& chainBuilder) con
   // TODO: check the cost of the underlying memory allocations and cace the seed positions buffer if needed
   const auto seedOffsets =
       Seed::getSeedOffsets(readLength, seedLength, SEED_PERIOD, SEED_PATTERN, FORCE_LAST_N_SEEDS);
-#ifdef DEBUG_LOG
+#ifdef TRACE_SEED_CHAINS
   for (size_t i = 0; i != seedOffsets.size(); ++i) {
     seedOffset = seedOffsets[i];
 #else
   for (const auto& seedOffset : seedOffsets) {
 #endif
 
-#ifdef DEBUG_LOG
+#ifdef TRACE_SEED_CHAINS
     std::cerr << "\n------------------------\nMapper::getPositionChains: seed offset: " << seedOffset
               << std::endl;
     std::cerr << "--------------------------longest_nonsample_seed_len:" << longest_nonsample_seed_len
@@ -83,6 +83,10 @@ void Mapper::getPositionChains(const Read& read, ChainBuilder& chainBuilder) con
           seed.isValid(0));  // getSeedOffset is supposed to produce offsets only for valid non-extended seeds
       addToPositionChains(
           seed, chainBuilder, globalBestIntvls, longest_nonsample_seed_len, num_extension_failure);
+    } else {
+#ifdef TRACE_SEED_CHAINS
+      std::cerr << "Seed validation failed(either contains N or longer than read length)." << std::endl;
+#endif
     }
   }
   // random sampling from extra interval
@@ -91,7 +95,7 @@ void Mapper::getPositionChains(const Read& read, ChainBuilder& chainBuilder) con
 
     for (const auto& item : globalBestIntvls) {
       if (globalBestIntvl.isWorseThan(item)) {
-#ifdef DEBUG_LOG
+#ifdef TRACE_SEED_CHAINS
         std::cerr << "Replace globalBestIntvl:\t" << globalBestIntvl.getSeed()
                   << "\tstart:" << globalBestIntvl.getStart() << "\tlength:" << globalBestIntvl.getLength()
                   << "\tseedLenght:" << globalBestIntvl.getSeedLength() << "\twith\t" << item.getSeed()
@@ -107,14 +111,14 @@ void Mapper::getPositionChains(const Read& read, ChainBuilder& chainBuilder) con
       return not item.hasOnlyRandomSamples();
     });
     if (globalBestIntvl.isValidExtra(num_non_sample_seed_chains, longest_nonsample_seed_len)) {
-#ifdef DEBUG_LOG
+#ifdef TRACE_SEED_CHAINS
       std::cerr << "Sampling from global best interval:\t" << globalBestIntvl.getStart() << ":"
                 << globalBestIntvl.getLength()
                 << "\tlongest non-sample seed length:" << longest_nonsample_seed_len << std::endl;
 #endif
       addExtraIntervalSamplesToPositionChains(globalBestIntvl, chainBuilder);
     } else {
-#ifdef DEBUG_LOG
+#ifdef TRACE_SEED_CHAINS
       std::cerr << "Had global best intervals but not valid extra:\t" << globalBestIntvl.getStart() << ":"
                 << globalBestIntvl.getLength()
                 << "\tlongest non-sample seed length:" << longest_nonsample_seed_len << std::endl;
@@ -219,7 +223,7 @@ void Mapper::addToPositionChains(
     localBestIntvl =
         BestIntervalTracker(seed, nextStart, extendTableIntervals.front().getLength(), fromHalfExtension);
     lastExtendTableSize = extendTableIntervals.size();
-#ifdef DEBUG_LOG
+#ifdef TRACE_SEED_CHAINS
     std::cerr << "Init localBestIntvlPtr with\t" << localBestIntvl.getSeed()
               << "\tseedLength:" << localBestIntvl.getSeedLength()
               << "\thalfExtension:" << localBestIntvl.getHalfExtension()
@@ -268,7 +272,7 @@ void Mapper::addToPositionChains(
             BOOST_THROW_EXCEPTION(common::PostConditionException(message.str()));
           }
           localBestIntvl = currentIntvl;
-#ifdef DEBUG_LOG
+#ifdef TRACE_SEED_CHAINS
           std::cerr << "Init(midway) localBestIntvlPtr with\t" << currentIntvl.getSeed()
                     << "\tseedLength:" << currentIntvl.getSeedLength()
                     << "\thalfExtension:" << currentIntvl.getHalfExtension()
@@ -276,7 +280,7 @@ void Mapper::addToPositionChains(
                     << std::endl;
 #endif
         } else if (localBestIntvl.isWorseThan(currentIntvl)) {
-#ifdef DEBUG_LOG
+#ifdef TRACE_SEED_CHAINS
           std::cerr << "Replace localBestIntvlPtr: Seed:" << localBestIntvl.getSeed()
                     << "\tseedLength:" << localBestIntvl.getSeedLength()
                     << "\thalfExtension:" << localBestIntvl.getHalfExtension()
@@ -288,7 +292,7 @@ void Mapper::addToPositionChains(
 #endif
           localBestIntvl = currentIntvl;
         } else {
-#ifdef DEBUG_LOG
+#ifdef TRACE_SEED_CHAINS
           std::cerr << "Retain localBestIntvlPtr: Seed:" << localBestIntvl.getSeed()
                     << "\tseedLength:" << localBestIntvl.getSeedLength()
                     << "\thalfExtension:" << localBestIntvl.getHalfExtension()
@@ -312,7 +316,7 @@ void Mapper::addToPositionChains(
   // global best interval tracking
   if (localBestIntvl.isValidInterval()) globalBestIntvls.push_back(localBestIntvl);
 
-#ifdef DEBUG_LOG
+#ifdef TRACE_SEED_CHAINS
   std::cerr << "Mapper::addToPositionChains: found " << extendTableIntervals.size()
             << " extendTableIntervals records:";
   for (const auto& record : extendTableIntervals)
@@ -342,8 +346,8 @@ void Mapper::addToPositionChains(
       chainBuilder.addSeedPosition(
           SeedPosition(seed, record.getPosition(), fromHalfExtension), orientation, isRandomSample);
       // global best interval tracking
-      if (longest_nonsample_seed_len < seed.getPrimaryLength() + record.getExtensionLength()) {
-        longest_nonsample_seed_len = seed.getPrimaryLength() + record.getExtensionLength();
+      if (longest_nonsample_seed_len < seed.getPrimaryLength() + 2 * fromHalfExtension) {
+        longest_nonsample_seed_len = seed.getPrimaryLength() + 2 * fromHalfExtension;
       }
     }
     if (isHitSeen) return;
@@ -401,11 +405,11 @@ void Mapper::addExtraIntervalSamplesToPositionChains(
   const auto reverseData             = seed.getPrimaryData(true);
   const bool seedIsReverseComplement = (reverseData < forwardData);
 
-#ifdef DEBUG_LOG
+#ifdef TRACE_SEED_CHAINS
   std::cerr << "Global Best Interval sampling:"
             << "\tPrimarySeed:" << bestIntvl.getSeed() << "\tintervalStart:" << bestIntvl.getStart()
             << "\tintervalLength:" << bestIntvl.getLength()
-            << "\thalfExtension:" << bestIntvl.getHalfExtension() << "\t";
+            << "\thalfExtension:" << bestIntvl.getHalfExtension() << "\n";
 #endif
   int nonExtraChainWaterMark = chainBuilder.size();
   if (bestIntvl.getLength() <= BestIntervalTracker::intvl_max_hits)  // fetch all
@@ -465,11 +469,6 @@ void Mapper::getRandomSamplesFromMatchInterval(
   if (1 == sampleSize) {
     maxRounds  = 1;
     uint32_t A = common::crc32c_hw(0, reinterpret_cast<const uint8_t*>(readName.data()), readName.size());
-
-#ifdef DEBUG_LOG
-    std::cerr << "CRC(" << std::string(readName.begin(), readName.end()) << "):" << std::hex << A << "\t";
-#endif
-
     uint32_t B = read->getPosition() << 31;
     B |= 0x40000000;
     B |= seed.getReadPosition() & 0x3FFFFFFF;
@@ -479,11 +478,15 @@ void Mapper::getRandomSamplesFromMatchInterval(
   else if (1 < sampleSize) {
     maxRounds = 0x4000;
     SEED      = common::crc32c_hw(0, reinterpret_cast<const uint8_t*>(readName.data()), readName.size());
-    SEED |= read->getPosition() << 31;
+    SEED      = read->getPosition() ? (SEED ^(1<<31)) : SEED;
   } else {
     boost::format message = boost::format("Expected positive target sampleSize: %d") % sampleSize;
     BOOST_THROW_EXCEPTION(common::PostConditionException(message.str()));
   }
+
+#ifdef TRACE_SEED_CHAINS
+  std::cerr << "SEED:" << std::hex << SEED << "\t";
+#endif
 
   uint32_t C = 0;
   uint32_t Z = 0;
@@ -494,22 +497,33 @@ void Mapper::getRandomSamplesFromMatchInterval(
     sampledIndex       = std::floor(intvl_len * double(C) / std::pow(2, 32));
     const auto& record = getHashtable()->getExtendTableRecord(intvl_start + sampledIndex);
 
-#ifdef DEBUG_LOG
-    std::cerr << "CRC(C):" << C << std::dec << "\tX:" << X << "\tsampledIndex:" << sampledIndex
+#ifdef TRACE_SEED_CHAINS
+    std::cerr << "CRC(C):" << std::hex << C << std::dec << "\tX:" << X << "\tsampledIndex:" << sampledIndex
               << "\treadPosition:" << std::hex << record.getPosition() << std::dec << "\t";
 #endif
 
     // filter record
-    if (alreadyFetchedIntvlPos.find(record.getPosition()) != alreadyFetchedIntvlPos.end()) continue;
-    if (ExtendTableRecord::LiftCode::ALT == record.getLiftCode()) continue;
-    if (ExtendTableRecord::LiftCode::DIF_PRI == record.getLiftCode()) continue;
+    if (alreadyFetchedIntvlPos.find(record.getPosition()) != alreadyFetchedIntvlPos.end() ||
+        ExtendTableRecord::LiftCode::ALT == record.getLiftCode() ||
+        ExtendTableRecord::LiftCode::DIF_PRI == record.getLiftCode()) {
+#ifdef TRACE_SEED_CHAINS
+      std::cerr << "Failed" << std::endl;
+#endif
+      continue;
+    }
     if (0x4000 < intvl_len) {
       Z            = SEED + sampledIndex;
       sampledIndex = common::crc32c_hw(0, reinterpret_cast<const uint8_t*>(&Z), 4) & 0x3FFF;
     }
-    if (hitVector.test(sampledIndex)) continue;
+    if (hitVector.test(sampledIndex)) {
+#ifdef TRACE_SEED_CHAINS
+      std::cerr << "Failed" << std::endl;
+#endif
 
-#ifdef DEBUG_LOG
+      continue;
+    }
+
+#ifdef TRACE_SEED_CHAINS
     std::cerr << "Survived" << std::endl;
 #endif
 
