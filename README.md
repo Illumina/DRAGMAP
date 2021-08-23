@@ -69,6 +69,9 @@ To compile with unit tests, if google test was installed in user space, it might
 
     dragen-os --build-hash-table true --ht-reference reference.fasta  --output-directory /home/data/reference/
 
+### Build hash table using an alt-masked bed file
+
+    dragen-os --build-hash-table true --ht-reference hg38.fa  --output-directory /home/data/reference/ --output-file-prefix=dragmap.hg38_alt_masked --ht-mask-bed=fasta_mask/hg38_alt_mask.bed
 
 ### Align paired-end reads :
 
