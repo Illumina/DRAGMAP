@@ -119,6 +119,7 @@ public:
   {
     const auto& bases = read.getBases();
     const auto& cigar = a.getCigar();
+    if (cigar.countEndHardClips() + cigar.countStartHardClips() >= bases.size()) return os;
     if (a.isReverseComplement()) {
       auto range = boost::adaptors::reverse(bases);
       range.advance_begin(cigar.countStartHardClips());
@@ -142,6 +143,7 @@ public:
   {
     const auto& qualities = read.getQualities();
     const auto& cigar     = a.getCigar();
+    if (cigar.countEndHardClips() + cigar.countStartHardClips() >= qualities.size()) return os;
     if (a.isReverseComplement()) {
       auto range = boost::adaptors::reverse(qualities);
       range.advance_begin(cigar.countStartHardClips());
