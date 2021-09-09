@@ -98,6 +98,7 @@ bool AlignmentGenerator::generateAlignment(
     const reference::HashtableConfig::Sequence& seq      = hashtableConfig.getSequences().at(refCoords.first);
     const auto                                  posRange = hashtableConfig.getPositionRange(seq);
     endPosition                                          = std::min<int64_t>(endPosition, posRange.second);
+    if (endPosition <= beginPosition) return false;  
   } else {
     // RP: from FZ:
     //    The purpose is to flag it as ineligible to be as final alignment even it is aligned but to a
