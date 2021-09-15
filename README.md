@@ -4,7 +4,13 @@ Dragmap is the Dragen mapper/aligner Open Source Software.
 
 ## Installation
 
-### Prerequisites
+### Using bioconda
+
+Dragmap is available in the [Bioconda](https://anaconda.org/bioconda/bowtie2) package manager. If you have bioconda installed, you should be able to install Dragmap with  `conda install dragmap` (or `conda create -n myenv dragmap` to install in a new environment). This will install the `dragen-os` binary.
+
+### Build from source
+
+#### Prerequisites
 
 Compilation was tested on CentOS 7
 
@@ -15,7 +21,7 @@ Compilation was tested on CentOS 7
 * Hardware: x86_86, 64GB RAM minimum
 * OS: Centos >= 7.7
 
-### Install
+#### Install
 
 
 The basic procedure is
