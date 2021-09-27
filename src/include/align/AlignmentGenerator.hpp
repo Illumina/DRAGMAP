@@ -40,9 +40,14 @@ public:
   {
   }
   /// delegate for the Aligner generateAlignments method
-  void generateAlignments(const Read& read, const map::ChainBuilder& chainBuilder, Alignments& alignments);
+  void generateAlignments(
+      const Read& read, const map::ChainBuilder& chainBuilder, Alignments& alignments, const int readIdx);
   bool generateAlignment(
-      const ScoreType alnMinScore, const Read& read, map::SeedChain seedChain, Alignment& alignment);
+      const ScoreType alnMinScore,
+      const Read&     read,
+      map::SeedChain  seedChain,
+      Alignment&      alignment,
+      const int       readIdx);
 
 private:
   const reference::ReferenceDir& referenceDir_;

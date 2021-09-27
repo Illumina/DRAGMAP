@@ -15,6 +15,7 @@
 #ifndef ALIGN_ALIGNMENT_RESCUE_HPP
 #define ALIGN_ALIGNMENT_RESCUE_HPP
 
+#include <emmintrin.h>
 #include <array>
 #include <deque>
 #include "align/Alignment.hpp"
@@ -92,6 +93,7 @@ private:
   static constexpr int RESCUE_CHAIN_LENGTH_NO_PAIRS   = 0;
   static constexpr int RESCUE_SEED_LENGTH             = 32;
   static constexpr int RESCUE_MAX_SNPS                = 7;
+  static constexpr int BASES_PER_CYCLE                = 4;  // 4 bases per cycle
 
   static constexpr auto pe_orient_fr_c = Orientation::pe_orient_fr_c;
   static constexpr auto pe_orient_rf_c = Orientation::pe_orient_rf_c;
@@ -184,7 +186,15 @@ public:
   /**
    ** \brief generate the two rescue kmers for the read to rescue
    **/
-  std::array<RescueKmer, 2> getRescueKmers(const Read& rescuedRead) const;
+  std::array<RescueKmer, 2> getRescueKmers(const Read& rescuedRead, signed modOffset) const;
+
+  /**
+   ** \brief load the rescue kmer into a mm128i vector for SIMD scanning
+   **/
+
+  __m128i loadRescueKmer(AlignmentRescue::RescueKmer rescueKmer) const;
+
+  __m128i loadRefKmer(std::vector<unsigned char>::const_iterator refIter, size_t size) const;
 
   /**
    ** \brief count mismatches between the kmer and the reference

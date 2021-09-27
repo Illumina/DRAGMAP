@@ -302,10 +302,13 @@ int main(int argc, char *argv[]) {
                     tagMismatchReference);
 
   std::vector<Sam> empty;
-
+  int counter = 0;
   while ((!samRecords[0].empty()) || (!samRecords[1].empty())) {
     // make sure that the comparison is for the same read name of against an
     // empty set
+    if (counter % 1000000 == 0)
+      std::cerr << "Input " << counter << " Records(Single or Pair)...\n";
+    counter++;
     compareSecondary(secondaryBuffers[0], secondaryBuffers[1], statistics);
     compareSupplementary(supplementaryBuffers[0], supplementaryBuffers[1],
                          statistics);
@@ -349,6 +352,7 @@ int main(int argc, char *argv[]) {
 Sam &Sam::operator=(const std::string &line) {
   reset();
   unparsed_ = line;
+  /*
   std::istringstream is(line);
   is >> name_;
   is >> flags_;
@@ -362,9 +366,21 @@ Sam &Sam::operator=(const std::string &line) {
   is >> dummy; // TLEN
   is >> dummy; // SEQ
   is >> dummy; // QUAL
-
+  */
+  std::vector<std::string> items;
   std::vector<std::string> results;
-  while (is >> dummy) {
+  boost::algorithm::split(items, line, boost::is_any_of("\t"));
+  auto iter = items.begin();
+  name_ = *iter++;
+  flags_ = std::stoi(*iter++);
+  sequence_ = *iter++;
+  position_ = std::stoi(*iter++);
+  mapq_ = std::stoi(*iter++);
+  cigar_ = *iter++;
+  iter += 5;
+  std::string dummy;
+  while (iter != items.end()) {
+    dummy = *iter++;
     boost::algorithm::split(results, dummy, boost::is_any_of(":"));
     tags_[results[0]] = results[2];
   }

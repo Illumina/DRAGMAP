@@ -177,7 +177,8 @@ int PairBuilder::computePairPenalty(
                                                                           : aln_cfg_unpaired_pen_;
   }
 
-  const int m2a_scale = mapq2aln(similarity_.getSnpCost(), readPair.getLength());
+  const int m2a_scale =
+      mapq2aln(similarity_.getSnpCost(), std::max(aln_cfg_mapq_min_len_, readPair.getLength()));
   //    std::cerr << "m2a_scale:" << m2a_scale << std::endl;
   const int m2a_prod = (m2a_scale * m2a_penalty) >> 10;
 
@@ -217,8 +218,9 @@ AlignmentPairs::const_iterator PairBuilder::findSecondBest(
     std::cerr << "[SCORING]\t"
               << "second best:" << *ret << std::endl;
 #endif  // TRACE_SCORING
-    ScoreType       other_best_scr = best->at(!readIdx).getScore();
-    const int       m2a_scale      = mapq2aln(similarity_.getSnpCost(), averageReadLength);
+    ScoreType other_best_scr = best->at(!readIdx).getScore();
+    const int m2a_scale =
+        mapq2aln(similarity_.getSnpCost(), std::max(aln_cfg_mapq_min_len_, averageReadLength));
     const ScoreType scaled_max_pen = (m2a_scale * aln_cfg_unpaired_pen_) >> 10;  //27;
 
     const bool      use_pe_mapq_v = ret->isProperPair();
@@ -227,7 +229,7 @@ AlignmentPairs::const_iterator PairBuilder::findSecondBest(
     const ScoreType list_pe_min = list_pe_max - similarity_.getSnpCost();
     const ScoreType list_se_max =
         use_pe_mapq_v ? (ret->getScore() - other_best_scr + scaled_max_pen) : ret->at(readIdx).getScore();
-    const ScoreType list_se_min = std::max(alnMinScore_, list_se_max - similarity_.getSnpCost());
+    const ScoreType list_se_min = list_se_max - similarity_.getSnpCost();
 #ifdef TRACE_SCORING
     std::cerr << "[SCORING]\t"
               << "list_pe_min:" << list_pe_min << " list_pe_max:" << list_pe_max << std::endl;
@@ -319,7 +321,8 @@ void PairBuilder::updateEndMapq(
   if (best->at(readIdx).isUnmapped()) {
     best->at(readIdx).setMapq(0);
   } else {
-    const int       a2m_scale     = aln2mapq(similarity_.getSnpCost(), averageReadLength);
+    const int a2m_scale =
+        aln2mapq(similarity_.getSnpCost(), std::max(aln_cfg_mapq_min_len_, averageReadLength));
     const ScoreType xs_score_diff = best->getScore() - xs[0] - xs[1];
     const MapqType xs_heur_mapq = std::max(0, ((xs_score_diff * a2m_scale) >> 13) + aln_cfg_xs_pair_penalty_);
 

@@ -61,7 +61,7 @@ public:
       }
     }
 
-    if (!alignment.hasMultipleSegments() ||(alignment.isUnmapped() && alignment.isUnmappedNextSegment())) {
+    if (!alignment.hasMultipleSegments() || (alignment.isUnmapped() && alignment.isUnmappedNextSegment())) {
       os << "*\t0\t";
     } else {
       os << (-1 == alignment.getNextReference()

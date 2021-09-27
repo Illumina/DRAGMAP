@@ -20,6 +20,41 @@
 namespace dragenos {
 namespace align {
 
+void VectorSmithWaterman::destroyReadContext(int readIdx)
+{
+  if (profile_[readIdx] != NULL) {
+    init_destroy(profile_[readIdx]);
+    profile_[readIdx] = NULL;
+  }
+
+  if (profileRev_[readIdx] != NULL) {
+    init_destroy(profileRev_[readIdx]);
+    profileRev_[readIdx] = NULL;
+  }
+}
+
+void VectorSmithWaterman::initReadContext(
+    const unsigned char* queryBegin, const unsigned char* queryEnd, int readIdx)
+{
+  querySize_[readIdx] = std::distance(queryBegin, queryEnd);
+  query_[readIdx].resize(querySize_[readIdx]);
+  queryRev_[readIdx].resize(querySize_[readIdx]);
+
+  std::copy(queryBegin, queryEnd, query_[readIdx].begin());
+
+  const std::reverse_iterator<const unsigned char*> rbegin(queryEnd);
+  const std::reverse_iterator<const unsigned char*> rend(queryBegin);
+  std::copy(rbegin, rend, queryRev_[readIdx].begin());
+
+  destroyReadContext(readIdx);
+
+  const int8_t* queryBeginInt = (int8_t*)query_[readIdx].data();
+  profile_[readIdx] = ssw_init(queryBeginInt, querySize_[readIdx], sswScoringMat_, sswAlphabetSize_, 2);
+
+  const int8_t* queryRevBeginInt = (int8_t*)queryRev_[readIdx].data();
+  profileRev_[readIdx] = ssw_init(queryRevBeginInt, querySize_[readIdx], sswScoringMat_, sswAlphabetSize_, 2);
+}
+
 // returns alignment score
 // returns operations list in cigar
 uint16_t VectorSmithWaterman::align(
@@ -28,22 +63,9 @@ uint16_t VectorSmithWaterman::align(
     const unsigned char* databaseBegin,
     const unsigned char* databaseEnd,
     bool                 reverseQuery,
-    std::string&         cigar)
+    std::string&         cigar,
+    int                  readIdx)
 {
-  const int querySize = std::distance(queryBegin, queryEnd);
-  query_.resize(querySize);
-  if (reverseQuery) {
-    const std::reverse_iterator<const unsigned char*> rbegin(queryEnd);
-    const std::reverse_iterator<const unsigned char*> rend(queryBegin);
-    std::copy(rbegin, rend, query_.begin());
-  } else {
-    // no need to reverse query if it is forward
-    std::copy(queryBegin, queryEnd, query_.begin());
-  }
-
-  const int8_t* queryBeginInt = (int8_t*)query_.data();  // queryBegin;
-  //const int8_t* queryEndInt   = (int8_t*)query_.data() + query_.size();  // queryEnd
-
   const int8_t* databaseBeginInt = (int8_t*)databaseBegin;
   const int8_t* databaseEndInt   = (int8_t*)databaseEnd;
 
@@ -53,24 +75,32 @@ uint16_t VectorSmithWaterman::align(
   const int dbSize = std::distance(databaseBeginInt, databaseEndInt);
 
   s_profile* profile;
-  s_align*   result;
+
+  // use the already built profile
+  int querySize = querySize_[readIdx];
+  if (reverseQuery) {
+    profile = profileRev_[readIdx];
+  } else {
+    profile = profile_[readIdx];
+  }
+
+  s_align* result;
 
   uint8_t flag = 0;
-  flag |= 0x08;  // report ref position
-  flag |= 0x0F;  // report cigar
-  flag             = 1;
+  //flag |= 0x08;  // report ref position
+  //flag |= 0x0F;  // report cigar
+  flag             = 1;  // always compute cigar
   uint16_t filters = 0;
   int32_t  filterd = 0;
   int32_t  maskLen = querySize / 2;
-  profile          = ssw_init(queryBeginInt, querySize, sswScoringMat_, sswAlphabetSize_, 2);
+
   result =
       ssw_align(profile, databaseBeginInt, dbSize, gapInit_, gapExtend_, flag, filters, filterd, maskLen);
 
   this->getCigarOperations(*result, querySize, cigar);
 
   int softClipStart = result->read_begin1;
-
-  int softClipEnd = querySize - result->read_end1 - 1;
+  int softClipEnd   = querySize - result->read_end1 - 1;
 #ifdef TRACE_VECTOR_SMITH_WATERMAN
 
   printf(
@@ -87,11 +117,7 @@ uint16_t VectorSmithWaterman::align(
 
   score = result->score1;
 
-  // does not seem very nice to have to alloc / free the profile and result structure every time, but the ssw
-  // library does not seem to provide another way
-
   align_destroy(result);
-  init_destroy(profile);
   return score - (softClipStart ? 0 : unclipScore_) - (softClipEnd ? 0 : unclipScore_);
 }
 

@@ -80,7 +80,7 @@ public:
   template <typename StoreOp>
   bool findSecondary(const int readLength, Alignments& alignments, const Alignment* best, StoreOp store) const
   {
-    const int       m2a_scale      = mapq2aln(similarity_.getSnpCost(), readLength);
+    const int m2a_scale = mapq2aln(similarity_.getSnpCost(), std::max(aln_cfg_mapq_min_len_, readLength));
     const ScoreType scaled_max_pen = (m2a_scale * aln_cfg_sec_phred_delta_) >> 10;  //27;
     const ScoreType sec_aln_delta  = std::max(scaled_max_pen, aln_cfg_sec_score_delta_);
     //    std::cerr << "scaled_max_pen:" << scaled_max_pen << std::endl;

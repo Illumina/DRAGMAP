@@ -20,11 +20,11 @@ namespace dragenos {
 namespace align {
 
 void AlignmentGenerator::generateAlignments(
-    const Read& read, const map::ChainBuilder& chainBuilder, Alignments& alignments)
+    const Read& read, const map::ChainBuilder& chainBuilder, Alignments& alignments, const int readIdx)
 {
   for (const auto& seedChain : chainBuilder) {
     auto& alignment = alignments.addAlignment();
-    generateAlignment(0, read, seedChain, alignment);
+    generateAlignment(0, read, seedChain, alignment, readIdx);
   }
 }
 
@@ -71,7 +71,11 @@ void AlignmentGenerator::updateFetchChain(const Read& read, map::SeedChain& seed
 }
 
 bool AlignmentGenerator::generateAlignment(
-    const ScoreType alnMinScore, const Read& read, map::SeedChain seedChain, Alignment& alignment)
+    const ScoreType alnMinScore,
+    const Read&     read,
+    map::SeedChain  seedChain,
+    Alignment&      alignment,
+    const int       readIdx)
 {
   if (seedChain.isFiltered()) {
     return false;
@@ -98,7 +102,7 @@ bool AlignmentGenerator::generateAlignment(
     const reference::HashtableConfig::Sequence& seq      = hashtableConfig.getSequences().at(refCoords.first);
     const auto                                  posRange = hashtableConfig.getPositionRange(seq);
     endPosition                                          = std::min<int64_t>(endPosition, posRange.second);
-    if (endPosition <= beginPosition) return false;  
+    if (endPosition <= beginPosition) return false;
   } else {
     // RP: from FZ:
     //    The purpose is to flag it as ineligible to be as final alignment even it is aligned but to a
@@ -134,8 +138,8 @@ bool AlignmentGenerator::generateAlignment(
   std::string operations;
   FlagType    flags = !read.getPosition() ? Alignment::FIRST_IN_TEMPLATE : Alignment::LAST_IN_TEMPLATE;
   {
-
     ScoreType scoreSW;
+
     if (vectorizedSW_) {
       scoreSW = vectorSmithWaterman_.align(
           query.data(),
@@ -143,7 +147,8 @@ bool AlignmentGenerator::generateAlignment(
           database.data(),
           database.data() + database.size(),
           seedChain.isReverseComplement(),
-          operations);
+          operations,
+          readIdx);
 
     } else {
       scoreSW = smithWaterman_.align(

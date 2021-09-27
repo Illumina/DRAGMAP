@@ -30,7 +30,12 @@ class VectorSmithWaterman {
 public:
   VectorSmithWaterman(
       const SimilarityScores& similarity, const int gapInit, const int gapExtend, const int unclipScore = 0)
-    : similarity_(similarity), gapInit_(gapInit), gapExtend_(gapExtend), unclipScore_(unclipScore)
+    : similarity_(similarity),
+      gapInit_(gapInit),
+      gapExtend_(gapExtend),
+      unclipScore_(unclipScore),
+      profile_({NULL, NULL}),
+      profileRev_({NULL, NULL})
   {
     sswAlphabetSize_ = 16;
     sswScoringMat_   = (int8_t*)calloc(sswAlphabetSize_ * sswAlphabetSize_, sizeof(int8_t));
@@ -68,20 +73,28 @@ public:
       const unsigned char* databaseBegin,
       const unsigned char* databaseEnd,
       bool                 reverseQuery,
-      std::string&         cigar);
+      std::string&         cigar,
+      int                  readIdx);
+
+  void initReadContext(const unsigned char* queryBegin, const unsigned char* queryEnd, int readIdx);
+  void destroyReadContext(int readIdx);
 
 private:
   std::string convert_cigar(const s_align& s_al, const int& query_len);
 
   void getCigarOperations(const s_align& s_al, const int& query_len, std::string& operations);
 
-  std::vector<unsigned char> query_;
-  const SimilarityScores     similarity_;
-  const int8_t               gapInit_;
-  const int8_t               gapExtend_;
-  const int8_t               unclipScore_;
-  int8_t*                    sswScoringMat_;
-  int                        sswAlphabetSize_;
+  std::array<std::vector<unsigned char>, 2> queryRev_;
+  std::array<std::vector<unsigned char>, 2> query_;
+  const SimilarityScores                    similarity_;
+  const int8_t                              gapInit_;
+  const int8_t                              gapExtend_;
+  const int8_t                              unclipScore_;
+  int8_t*                                   sswScoringMat_;
+  int                                       sswAlphabetSize_;
+  std::array<int, 2>                        querySize_;
+  std::array<s_profile*, 2>                 profile_;
+  std::array<s_profile*, 2>                 profileRev_;
 };
 
 }  // namespace align

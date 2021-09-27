@@ -282,6 +282,7 @@ void DualFastq2SamWorkflow::parseDualFastq(
                 options_.gapExtendPenalty_,
                 options_.unclipScore_,
                 options_.alnMinScore_,
+                options_.alignerMapqMinLen_,
                 options_.alignerUnpairedPen_,
                 options_.mapperFilterLenRatio_,
                 !options_.methodSmithWaterman_.compare("mengyao"));

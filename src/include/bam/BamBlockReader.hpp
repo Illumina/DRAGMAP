@@ -44,7 +44,7 @@ class BamBlockReader {
 public:
   typedef std::istream::char_type char_type;
 
-  BamBlockReader(std::istream& stream, const char inputQnameSuffixDelim) : stream_(stream)
+  BamBlockReader(std::istream& stream, const char inputQnameSuffixDelim) : stream_(stream), inputQnameSuffixDelim_ (inputQnameSuffixDelim)
   {
     skipToFirstRecord();
   }

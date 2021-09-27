@@ -54,6 +54,7 @@ public:
       const int                      gapExtend,
       const int                      unclipScore,
       const int                      alnMinScore,
+      const int                      aln_cfg_mapq_min_len,
       const uint32_t                 alignerUnpairedPen,
       const double                   aln_cfg_filter_len_ratio,
       const bool                     vectorizedSW);
@@ -73,13 +74,14 @@ public:
   Alignments& unpaired(std::size_t readPosition) { return unpairedAlignments_.at(readPosition); }
   /// generate ungapped alignments from the seed chains
   void generateUngappedAlignments(const Read& read, map::ChainBuilder& chainBuilder, Alignments& alignments);
-  void runSmithWatermanAll(const Read& read, const map::ChainBuilder& chainBuilder, Alignments& alignments);
+  void runSmithWatermanAll(
+      const Read& read, const map::ChainBuilder& chainBuilder, Alignments& alignments, const int readIdx);
   /// generate the ungapped alignment for the given seed chain
   void generateUngappedAlignment(const Read& read, map::SeedChain& seedChain, Alignment& alignment);
   /// generate dummy alignments consistent with the seed chains
   void generateDummyAlignments(
       const Read& read, const map::ChainBuilder& chainBuilder, Alignments& alignments) const;
-  void deFilterChain(const Read& read, map::SeedChain& seedChain, Alignment& alignment);
+  void deFilterChain(const Read& read, map::SeedChain& seedChain, Alignment& alignment, const int readIdx);
   /**
    ** \brief Accepts query and reference sequences of identical length and compares
    ** corresponding bases one by one.
@@ -151,6 +153,7 @@ private:
   const ScoreType           gapExtend_;
   const ScoreType           unclipScore_;
   const ScoreType           alnMinScore_;
+  const int                 aln_cfg_mapq_min_len_;
   const int                 aln_cfg_unpaired_pen_;
   SmithWaterman             smithWaterman_;
   VectorSmithWaterman       vectorSmithWaterman_;
@@ -170,7 +173,8 @@ private:
       Alignment&                  anchoredAlignment,
       const AlignmentRescue&      alignmentRescue,
       map::SeedChain&             rescuedSeedChain,
-      Alignment&                  rescuedAlignment);
+      Alignment&                  rescuedAlignment,
+      const int                   anchoredIdx);
 
   void makePair(
       const InsertSizeParameters& insertSizeParameters,

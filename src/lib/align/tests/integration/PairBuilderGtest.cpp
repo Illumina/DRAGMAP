@@ -100,8 +100,8 @@ TEST(PairBuilder, updateMapq)
   alignments.back().setScore(108);
   pairBuilder.pickBest(readPair, alignments, unpairedAlignments);
   // one end gets suboptimal alignment
-  ASSERT_EQ(51, alignments.front()[0].getMapq());
-  ASSERT_EQ(51, alignments.front()[1].getMapq());
+  ASSERT_EQ(48, alignments.front()[0].getMapq());
+  ASSERT_EQ(48, alignments.front()[1].getMapq());
 }
 
 TEST(PairBuilder, pickBest1)

@@ -44,6 +44,7 @@ Aligner::Aligner(
     const int                      gapExtend,
     const int                      unclipScore,
     const int                      alnMinScore,
+    const int                      aln_cfg_mapq_min_len,
     const uint32_t                 aln_cfg_unpaired_pen,
     const double                   aln_cfg_filter_len_ratio,
     const bool                     vectorizedSW)
@@ -57,6 +58,7 @@ Aligner::Aligner(
     gapExtend_(gapExtend),
     unclipScore_(unclipScore),
     alnMinScore_(alnMinScore),
+    aln_cfg_mapq_min_len_(aln_cfg_mapq_min_len),
     aln_cfg_unpaired_pen_(aln_cfg_unpaired_pen),
     smithWaterman_(similarity, gapInit, gapExtend, unclipScore),
     vectorSmithWaterman_(similarity, gapInit, gapExtend, unclipScore),
@@ -113,10 +115,10 @@ void Aligner::generateUngappedAlignments(
 }
 
 void Aligner::runSmithWatermanAll(
-    const Read& read, const map::ChainBuilder& chainBuilder, Alignments& alignments)
+    const Read& read, const map::ChainBuilder& chainBuilder, Alignments& alignments, const int readIdx)
 {
   for (int i = 0; i < chainBuilder.size(); ++i) {
-    alignmentGenerator_.generateAlignment(alnMinScore_, read, chainBuilder.at(i), alignments.at(i));
+    alignmentGenerator_.generateAlignment(alnMinScore_, read, chainBuilder.at(i), alignments.at(i), readIdx);
   }
 
   ////  if (DEBUG_FILES)
@@ -152,13 +154,14 @@ void Aligner::generateUngappedAlignment(const Read& read, map::SeedChain& seedCh
 #endif
 }
 
-void Aligner::deFilterChain(const Read& read, map::SeedChain& seedChain, Alignment& alignment)
+void Aligner::deFilterChain(
+    const Read& read, map::SeedChain& seedChain, Alignment& alignment, const int readIdx)
 {
   if (seedChain.isFiltered()) {
     seedChain.setFiltered(false);
     generateUngappedAlignment(read, seedChain, alignment);
     if (swAll_) {
-      alignmentGenerator_.generateAlignment(alnMinScore_, read, seedChain, alignment);
+      alignmentGenerator_.generateAlignment(alnMinScore_, read, seedChain, alignment, readIdx);
     }
   }
 }
@@ -318,7 +321,7 @@ void Aligner::runSmithWatermanWorthy(
         bestScore = alignment.getScore();
       }
       if (alignment.getPotentialScore() > alignment.getScore()) {
-        alignmentGenerator_.generateAlignment(alnMinScore_, read, seedChain, alignment);
+        alignmentGenerator_.generateAlignment(alnMinScore_, read, seedChain, alignment, 0);
       }
     }
   }
@@ -326,6 +329,11 @@ void Aligner::runSmithWatermanWorthy(
 
 void Aligner::getAlignments(const Read& read, Alignments& alignments)
 {
+  if (vectorizedSW_) {
+    const auto& query0 = read.getBases();
+    vectorSmithWaterman_.initReadContext(query0.data(), query0.data() + query0.size(), 0);
+  }
+
   alignments.clear();
   map::ChainBuilder& chainBuilder = chainBuilders_[0];
   chainBuilder.clear();
@@ -334,10 +342,14 @@ void Aligner::getAlignments(const Read& read, Alignments& alignments)
   if (0 != chainBuilder.size()) {
     buildUngappedAlignments(chainBuilder, read, alignments);
     if (swAll_) {
-      runSmithWatermanAll(read, chainBuilder, alignments);
+      runSmithWatermanAll(read, chainBuilder, alignments, 0);
     } else {
       runSmithWatermanWorthy(read, chainBuilder, alignments);
     }
+  }
+
+  if (vectorizedSW_) {
+    vectorSmithWaterman_.destroyReadContext(0);
   }
 }
 
@@ -349,20 +361,23 @@ bool Aligner::rescueMate(
     Alignment&                  anchoredAlignment,
     const AlignmentRescue&      alignmentRescue,
     map::SeedChain&             rescuedSeedChain,
-    Alignment&                  rescuedAlignment)
+    Alignment&                  rescuedAlignment,
+    const int                   anchoredIdx)
 {
+  const int rescuedIdx = !anchoredIdx;
+
   if (alignmentRescue.scan(
           rescuedRead, anchoredSeedChain, referenceDir_.getReferenceSequence(), rescuedSeedChain)) {
     //          std::cerr << "rescued:" << rescuedSeedChain << std::endl;
     if (alignmentGenerator_.generateAlignment(
-            alnMinScore_, rescuedRead, rescuedSeedChain, rescuedAlignment)) {
+            alnMinScore_, rescuedRead, rescuedSeedChain, rescuedAlignment, rescuedIdx)) {
       //          bestUnpairedScore[rescuedReadPosition] = std::max(bestUnpairedScore[rescuedReadPosition], rescuedAlignment.getScore());
       // do Smith-Waterman on the anchored alignment if necessary
       if (!anchoredAlignment.isSmithWatermanDone() &&
           ((anchoredAlignment.getPotentialScore() > anchoredAlignment.getScore()) ||
            (!anchoredAlignment.isPerfect()))) {
         alignmentGenerator_.generateAlignment(
-            alnMinScore_, anchoredRead, anchoredSeedChain, anchoredAlignment);
+            alnMinScore_, anchoredRead, anchoredSeedChain, anchoredAlignment, anchoredIdx);
       }
 #ifdef TRACE_ALIGNMENTS
       std::cerr << "[ALIGNMENT]\t"
@@ -444,7 +459,8 @@ bool Aligner::rescuePair(
             anchoredAlignment,
             alignmentRescue,
             rescuedSeedChain,
-            rescued)) {
+            rescued,
+            anchoredIdx)) {
       chainBuilders_[rescuedIdx].addSeedChain(rescuedSeedChain);
       unpairedAlignments_[rescuedIdx].append(rescued);
       makePair(
@@ -469,6 +485,14 @@ AlignmentPairs::iterator Aligner::getAlignments(
     const InsertSizeParameters& insertSizeParameters,
     const PairBuilder&          pairBuilder)
 {
+  if (vectorizedSW_) {
+    const auto& query0 = readPair[0].getBases();
+    vectorSmithWaterman_.initReadContext(query0.data(), query0.data() + query0.size(), 0);
+
+    const auto& query1 = readPair[1].getBases();
+    vectorSmithWaterman_.initReadContext(query1.data(), query1.data() + query1.size(), 1);
+  }
+
   alignmentPairs.clear();
   chainBuilders_[0].clear();
   chainBuilders_[1].clear();
@@ -490,8 +514,8 @@ AlignmentPairs::iterator Aligner::getAlignments(
   buildUngappedAlignments(chainBuilders_[1], readPair[1], unpairedAlignments_[1]);
 
   if (swAll_) {
-    runSmithWatermanAll(readPair[0], chainBuilders_[0], unpairedAlignments_[0]);
-    runSmithWatermanAll(readPair[1], chainBuilders_[1], unpairedAlignments_[1]);
+    runSmithWatermanAll(readPair[0], chainBuilders_[0], unpairedAlignments_[0], 0);
+    runSmithWatermanAll(readPair[1], chainBuilders_[1], unpairedAlignments_[1], 1);
   }
 
   int bestOffset0 = findBest(unpairedAlignments_[0]);
@@ -525,8 +549,8 @@ AlignmentPairs::iterator Aligner::getAlignments(
         pairsFound[0].at(i0) = true;
         pairsFound[1].at(i1) = true;
         any_pair_match |= !chain0.hasOnlyRandomSamples() && !chain1.hasOnlyRandomSamples();
-        deFilterChain(readPair.at(0), chain0, unpairedAlignments_[0].at(i0));
-        deFilterChain(readPair.at(1), chain1, unpairedAlignments_[1].at(i1));
+        deFilterChain(readPair.at(0), chain0, unpairedAlignments_[0].at(i0), 0);
+        deFilterChain(readPair.at(1), chain1, unpairedAlignments_[1].at(i1), 1);
       }
       if (hasBestUnpaired || isPair) {
         makePair(
@@ -651,8 +675,9 @@ AlignmentPairs::iterator Aligner::getAlignments(
     unmappedR1.setNextPosition(best0.getPosition());
     unpairedAlignments_[1].append(unmappedR1);
 
-    const int m2a_scale = mapq2aln(similarity_.getSnpCost(), readPair.getLength());
-    const int pair_pen  = (aln_cfg_unpaired_pen_ * m2a_scale) >> 10;
+    const int m2a_scale =
+        mapq2aln(similarity_.getSnpCost(), std::max(aln_cfg_mapq_min_len_, readPair.getLength()));
+    const int pair_pen = (aln_cfg_unpaired_pen_ * m2a_scale) >> 10;
     alignmentPairs.push_back(AlignmentPair(
         best0,
         chainBuilders_[0].size() > bestOffset0 ? &chainBuilders_[0].at(bestOffset0) : 0,
@@ -686,8 +711,9 @@ AlignmentPairs::iterator Aligner::getAlignments(
     unmappedR0.setNextPosition(best1.getPosition());
     unpairedAlignments_[0].append(unmappedR0);
 
-    const int m2a_scale = mapq2aln(similarity_.getSnpCost(), readPair.getLength());
-    const int pair_pen  = (aln_cfg_unpaired_pen_ * m2a_scale) >> 10;
+    const int m2a_scale =
+        mapq2aln(similarity_.getSnpCost(), std::max(aln_cfg_mapq_min_len_, readPair.getLength()));
+    const int pair_pen = (aln_cfg_unpaired_pen_ * m2a_scale) >> 10;
     alignmentPairs.push_back(AlignmentPair(
         unpairedAlignments_[0].back(),
         best1,
@@ -715,7 +741,8 @@ AlignmentPairs::iterator Aligner::getAlignments(
         if ((nullptr != seedChains[i]) && !alignmentPair[i].isSmithWatermanDone() &&
             ((alignmentPair[i].getPotentialScore() + 20 > alignmentPair[i].getScore()) ||
              (!alignmentPair[i].isPerfect()))) {
-          alignmentGenerator_.generateAlignment(alnMinScore_, readPair[i], *seedChains[i], alignmentPair[i]);
+          alignmentGenerator_.generateAlignment(
+              alnMinScore_, readPair[i], *seedChains[i], alignmentPair[i], i);
           // bestUnpairedScore[i] = std::max(bestUnpairedScore[i], alignmentPair[i].getScore());
         }
       }
@@ -742,6 +769,11 @@ AlignmentPairs::iterator Aligner::getAlignments(
       //                            << ", insert_diff=" << insert_diff << ", pair_pen=" << pair_pen
       //                            << ", pair_score=" << alignmentPair.getScore() << std::endl;
     }
+  }
+
+  if (vectorizedSW_) {
+    vectorSmithWaterman_.destroyReadContext(0);
+    vectorSmithWaterman_.destroyReadContext(1);
   }
 
   if (!unpairedAlignments_[0].empty() && !unpairedAlignments_[1].empty()) {

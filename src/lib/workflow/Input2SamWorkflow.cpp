@@ -267,6 +267,7 @@ void parseSingleInput(
                 options.gapExtendPenalty_,
                 options.unclipScore_,
                 options.alnMinScore_,
+                options.alignerMapqMinLen_,
                 options.alignerUnpairedPen_,
                 options.mapperFilterLenRatio_,
                 !options.methodSmithWaterman_.compare("mengyao"));

@@ -12,6 +12,7 @@
  **
  **/
 
+#include <emmintrin.h>
 #include <boost/assert.hpp>
 #include <iomanip>
 
@@ -108,15 +109,28 @@ uint32_t AlignmentRescue::getReferenceInterval(
   return first_ref_pos;
 }
 
+__m128i mm_bitshift_left4(__m128i x)
+{
+  __m128i carry =
+      _mm_bslli_si128(x, 8);          // old compilers only have the confusingly named _mm_slli_si128 synonym
+  carry = _mm_srli_epi64(carry, 60);  // After bslli shifted left by 64b
+
+  x = _mm_slli_epi64(x, 4);
+  return _mm_or_si128(x, carry);
+}
+
+static inline int popcnt128(__m128i n)
+{
+  const __m128i n_hi = _mm_unpackhi_epi64(n, n);
+  return __builtin_popcountll(_mm_cvtsi128_si64(n)) + __builtin_popcountll(_mm_cvtsi128_si64(n_hi));
+}
+
 bool AlignmentRescue::scan(
     const Read&                         rescuedRead,
     const SeedChain&                    anchoredChain,
     const reference::ReferenceSequence& reference,
     SeedChain&                          rescuedChain) const
 {
-  //const bool log =  (alignment.getReferenceName() == "chr10") && (alignment.getPosition() == 52558952);
-  //if (log) std::cerr << "scanning... " << std::endl;
-
   rescuedChain.clear();
 
   std::vector<unsigned char> referenceBases;
@@ -127,9 +141,9 @@ bool AlignmentRescue::scan(
     const auto rescueIntervalStart =
         getReferenceInterval(anchoredChain, rescuedRead.getLength(), reference, referenceBases);
 
-    //    std::cerr << "rescueIntervalStart=" <<rescueIntervalStart << ", anchoredChain.firstReferencePosition(): " << anchoredChain.firstReferencePosition() << ", anchoredChain.lastReferencePosition(): " << anchoredChain.lastReferencePosition() << ", anchoredChain.isReverseComplement(): " << anchoredChain.isReverseComplement()<< std::endl;
     // build the two rescue 32-mers
-    const auto rescueKmers = getRescueKmers(rescuedRead);
+    unsigned   modOffset   = rescuedRead.getLength() % BASES_PER_CYCLE;
+    const auto rescueKmers = getRescueKmers(rescuedRead, modOffset);
 
     // if (log)
     //{
@@ -144,36 +158,64 @@ bool AlignmentRescue::scan(
     // scan the rescue reference interval for each of the rescue 32-mers
     assert(pe_max_insert_ >= pe_min_insert_);
     const int scanLength = referenceBases.size() - rescuedRead.getLength();
-    //map::SeedChain rescuedChain;
     // the offsets that give the least number of mismatches for each kmer
     int bestOffsets[] = {scanLength, scanLength};
     int bestCounts[]  = {rescueKmers[0].size(), rescueKmers[1].size()};
     const std::vector<unsigned char>::const_iterator startIterators[] = {
-        referenceBases.begin(), referenceBases.end() - scanLength - rescueKmers[1].size()};
+        referenceBases.begin(), referenceBases.end() - scanLength - rescueKmers[1].size() - modOffset};
     bool conflict = false;
 
     // if (log)
-    //    std::cerr << "referenceBases.size(): " << referenceBases.size() << ", scanLength=" << scanLength
-    //              << ", rescueKmers[1].size()=" << rescueKmers[1].size() << std::endl;
+    //   std::cerr << "referenceBases.size(): " << referenceBases.size() << ", scanLength=" << scanLength
+    //           << ", rescueKmers[1].size()=" << rescueKmers[1].size() << std::endl;
+
+    __m128i kmer1_m = loadRescueKmer(rescueKmers[0]);
+    __m128i kmer2_m = loadRescueKmer(rescueKmers[1]);
+
+    __m128i refkmer1_m = loadRefKmer(startIterators[0], rescueKmers[0].size());
+    __m128i refkmer2_m = loadRefKmer(startIterators[1], rescueKmers[0].size());
 
     for (int i = 0; scanLength > i; ++i) {
       // get the number of mismatches for both kmer
-      const int mismatchCounts[] = {countMismatches(rescueKmers[0], startIterators[0] + i),
-                                    countMismatches(rescueKmers[1], startIterators[1] + i)};
+      //    const int mismatchCounts[] = {
+      //        countMismatches(rescueKmers[0], startIterators[0] + i),
+      //        countMismatches(rescueKmers[1], startIterators[1] + i)};
+
+      // count matches = compare with &, then popcount
+      __m128i comparek1 = _mm_and_si128(refkmer1_m, kmer1_m);
+      __m128i comparek2 = _mm_and_si128(refkmer2_m, kmer2_m);
+      int     nbmis0    = rescueKmers[0].size() - popcnt128(comparek1);
+      int     nbmis1    = rescueKmers[1].size() - popcnt128(comparek2);
+
+      const int mismatchCounts[] = {nbmis0, nbmis1};
+
       // update best counts and best offsets
       for (int j = 0; j != 2; ++j) {
-        if (bestCounts[j] > mismatchCounts[j]) {
+        if (bestCounts[j] > mismatchCounts[j] or
+            (bestCounts[j] == mismatchCounts[j] and i <= scanLength / 2)) {
           // flag a conflic if the kmer maps at multiple locations
           conflict |= (bestCounts[j] <= RESCUE_MAX_SNPS);
           bestCounts[j]  = mismatchCounts[j];
           bestOffsets[j] = i;
         }
       }
-
       // if (log) std::cerr << i << '\t' << mismatchCounts[0] << ":" << mismatchCounts[1] << " - " << bestCounts[0] << ":" << bestCounts[1] << " - " << bestOffsets[0] << ":" << bestOffsets[1] << std::endl;
-    }
 
-    //if (log) std::cerr << "1" << std::endl;
+      unsigned char newBase;
+      // shift kmer window on reference by one base : shift left vector 4 bits and insert new base
+      refkmer1_m = mm_bitshift_left4(refkmer1_m);
+      newBase    = *(startIterators[0] + rescueKmers[0].size() - 1 + i + 1);
+      if (newBase == 0xF) newBase = 0;
+      __m128i newBase_m = _mm_setr_epi8(newBase, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+      refkmer1_m        = _mm_or_si128(refkmer1_m, newBase_m);
+
+      // idem for second kmer
+      refkmer2_m = mm_bitshift_left4(refkmer2_m);
+      newBase    = *(startIterators[1] + rescueKmers[0].size() - 1 + i + 1);
+      if (newBase == 0xF) newBase = 0;
+      newBase_m  = _mm_setr_epi8(newBase, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+      refkmer2_m = _mm_or_si128(refkmer2_m, newBase_m);
+    }
 
     // flag a conflict and adjust the best offset if they are on different diagonals
     if (bestOffsets[0] != bestOffsets[1]) {
@@ -184,8 +226,6 @@ bool AlignmentRescue::scan(
         bestOffsets[1] = bestOffsets[0];
       }
     }
-
-    //if (log) std::cerr << "5: bestcounts: " << bestCounts[0] << " - " << bestCounts[1] << std::endl;
 
     // generate the new seed chain and alignment pair if any
     if ((bestCounts[0] <= RESCUE_MAX_SNPS) || (bestCounts[1] <= RESCUE_MAX_SNPS)) {
@@ -202,12 +242,13 @@ bool AlignmentRescue::scan(
         const sequences::Seed seed(
             &rescuedRead, rescuedRead.getLength() - RESCUE_SEED_LENGTH, RESCUE_SEED_LENGTH);
         const int64_t referencePosition =
-            rescueIntervalStart + (reversedRescue
-                                       ? (referenceBases.size() - rescuedRead.getLength() - bestOffsets[1])
-                                       : rescuedRead.getLength() + bestOffsets[1] - RESCUE_SEED_LENGTH);
+            rescueIntervalStart +
+            (reversedRescue
+                 ? (referenceBases.size() - rescuedRead.getLength() - bestOffsets[1] + modOffset - 1)
+                 : rescuedRead.getLength() + bestOffsets[1] - RESCUE_SEED_LENGTH + modOffset - 1);
         rescuedChain.addSeedPosition(map::SeedPosition(seed, referencePosition, 0), false);
       }
-
+      rescuedChain.setPerfect(not conflict);
       //if (log) std::cerr << "scanning... succeeded" << std::endl;
       DRAGEN_RESCUE_LOG << "RESCUE: "
                         << "first_seed_pos=" << rescuedChain.firstReadBase()
@@ -220,8 +261,6 @@ bool AlignmentRescue::scan(
       return true;
     }
   }
-
-  //if (log) std::cerr << "scanning... failed" << std::endl;
 
   DRAGEN_RESCUE_LOG << "NO_RESCUE" << std::endl;
   return false;
@@ -249,7 +288,53 @@ int AlignmentRescue::countMismatches(
   return count;
 }
 
-std::array<AlignmentRescue::RescueKmer, 2> AlignmentRescue::getRescueKmers(const Read& rescuedRead) const
+__m128i AlignmentRescue::loadRescueKmer(AlignmentRescue::RescueKmer rescueKmer) const
+{
+  // left most base on kmer =  highest address in vector
+  std::array<unsigned char, 16> kmer_packed;
+  int                           jj     = 0;
+  unsigned char                 packed = 0;
+  for (size_t ii = 0; rescueKmer.size() != ii; ++ii) {
+    packed = packed << 4;
+    packed |= rescueKmer[ii];
+
+    if (ii & 1) {
+      kmer_packed[15 - jj] = packed;
+      jj++;
+      packed = 0;
+    }
+  }
+  __m128i kmer_mm = _mm_loadu_si128((__m128i*)kmer_packed.data());
+
+  return kmer_mm;
+}
+
+// load kmer from reference into mm128 vector, and set all non ATCG to 0
+__m128i AlignmentRescue::loadRefKmer(std::vector<unsigned char>::const_iterator refIter, size_t size) const
+{
+  std::array<unsigned char, 16> kmer_packed;
+
+  unsigned char packed = 0;
+  int           jj     = 0;
+  for (size_t ii = 0; size != ii; ++ii) {
+    packed             = packed << 4;
+    unsigned char pval = *(refIter + ii);
+    if (pval == 0xF) pval = 0;
+    packed |= pval;
+    if (ii & 1) {
+      kmer_packed[15 - jj] = packed;
+      jj++;
+      packed = 0;
+    }
+  }
+
+  __m128i refkmer_mm = _mm_loadu_si128((__m128i*)kmer_packed.data());
+
+  return refkmer_mm;
+}
+
+std::array<AlignmentRescue::RescueKmer, 2> AlignmentRescue::getRescueKmers(
+    const Read& rescuedRead, signed modOffset) const
 {
   std::array<RescueKmer, 2> rescueKmers;
   std::fill(rescueKmers[0].begin(), rescueKmers[0].end(), 0);
@@ -259,7 +344,7 @@ std::array<AlignmentRescue::RescueKmer, 2> AlignmentRescue::getRescueKmers(const
     rescueKmers[0][i] = rescuedRead.getBase4bpb(i);
   }
   for (unsigned i = 0; i != length; ++i) {
-    rescueKmers[1][i] = rescuedRead.getBase4bpb(i + rescuedRead.getLength() - length);
+    rescueKmers[1][i] = rescuedRead.getBase4bpb(i + rescuedRead.getLength() - length - modOffset);
   }
   return rescueKmers;
 }

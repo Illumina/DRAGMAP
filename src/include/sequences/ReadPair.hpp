@@ -31,7 +31,7 @@ public:
   //{
   //}
 
-  double getLength() const { return (double(at(0).getLength()) + double(at(1).getLength())) / 2; }
+  int getLength() const { return (at(0).getLength() + at(1).getLength()) / 2; }
 
   friend std::ostream& operator<<(std::ostream& os, const ReadPair& pair)
   {

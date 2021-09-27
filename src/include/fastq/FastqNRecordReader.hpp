@@ -47,6 +47,11 @@ public:
       --lines;
     }
 
+    if (!stream_ && !stream_.eof()) {
+      throw std::logic_error(
+          std::string("Error '") << strerror(errno) << "' reading input stream at " << stream_.tellg());
+    }
+
     return n - lines / FASTQ_LINES_PER_RECORD;
   }
 

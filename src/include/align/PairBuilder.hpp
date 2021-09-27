@@ -109,7 +109,8 @@ public:
       int                                  readIdx,
       StoreOp                              store) const
   {
-    const int       m2a_scale      = mapq2aln(similarity_.getSnpCost(), averageReadLength);
+    const int m2a_scale =
+        mapq2aln(similarity_.getSnpCost(), std::max(aln_cfg_mapq_min_len_, averageReadLength));
     const ScoreType scaled_max_pen = (m2a_scale * aln_cfg_sec_phred_delta_) >> 10;  //27;
     const ScoreType sec_aln_delta  = std::max(scaled_max_pen, aln_cfg_sec_score_delta_);
 
