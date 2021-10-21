@@ -140,7 +140,7 @@ bool AlignmentGenerator::generateAlignment(
   {
     ScoreType scoreSW;
 
-    if (vectorizedSW_) {
+    if (vectorizedSW_ && query.size() > 30) {
       scoreSW = vectorSmithWaterman_.align(
           query.data(),
           query.data() + query.size(),
