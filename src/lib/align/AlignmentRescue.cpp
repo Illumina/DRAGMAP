@@ -157,7 +157,9 @@ bool AlignmentRescue::scan(
 
     // scan the rescue reference interval for each of the rescue 32-mers
     assert(pe_max_insert_ >= pe_min_insert_);
-    const int scanLength = referenceBases.size() - rescuedRead.getLength();
+    const int scanLength = std::min(
+        referenceBases.size() - rescuedRead.getLength(),
+        referenceBases.size() - rescueKmers[1].size() - modOffset);
     // the offsets that give the least number of mismatches for each kmer
     int bestOffsets[] = {scanLength, scanLength};
     int bestCounts[]  = {rescueKmers[0].size(), rescueKmers[1].size()};
@@ -343,8 +345,10 @@ std::array<AlignmentRescue::RescueKmer, 2> AlignmentRescue::getRescueKmers(
   for (unsigned i = 0; i != length; ++i) {
     rescueKmers[0][i] = rescuedRead.getBase4bpb(i);
   }
-  for (unsigned i = 0; i != length; ++i) {
-    rescueKmers[1][i] = rescuedRead.getBase4bpb(i + rescuedRead.getLength() - length - modOffset);
+
+  const unsigned length2 = std::min(rescuedRead.getLength() - modOffset, rescueKmers[0].size());
+  for (unsigned i = 0; i != length2; ++i) {
+    rescueKmers[1][i] = rescuedRead.getBase4bpb(i + rescuedRead.getLength() - length2 - modOffset);
   }
   return rescueKmers;
 }
