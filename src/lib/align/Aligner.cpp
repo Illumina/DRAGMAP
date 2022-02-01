@@ -127,20 +127,36 @@ void Aligner::runSmithWatermanAll(
   //  }
 }
 
+void Aligner::updateIneligibility(
+    const reference::HashtableConfig& hashtableConfig,
+    const size_t                      referenceOffset,
+    const Read&                       read,
+    Alignment&                        alignment)
+{
+  auto        referenceCoordinates = hashtableConfig.convertToReferenceCoordinates(referenceOffset);
+  const auto& sequences            = hashtableConfig.getSequences();
+  const auto& sequence             = sequences.at(referenceCoordinates.first);
+  if (referenceCoordinates.second + read.getLength() <= 0 || sequence.seqLen <= referenceCoordinates.second) {
+    alignment.setIneligibilityStatus(true);
+  }
+}
+
 void Aligner::generateUngappedAlignment(const Read& read, map::SeedChain& seedChain, Alignment& alignment)
 {
   FlagType flags = !read.getPosition() ? Alignment::FIRST_IN_TEMPLATE : Alignment::LAST_IN_TEMPLATE;
   flags |= seedChain.isReverseComplement() ? Alignment::REVERSE_COMPLEMENT : 0;
   flags |= seedChain.isFiltered() ? Alignment::UNMAPPED : 0;
   alignment.resetFlags(flags);
+
+  const size_t referenceOffset = seedChain.firstReferencePosition();
+  updateIneligibility(referenceDir_.getHashtableConfig(), referenceOffset, read, alignment);
+
   if (seedChain.isFiltered()) {
     return;
   }
 
-  const size_t referenceOffset = seedChain.firstReferencePosition();
-
-  int move =
-      initializeUngappedAlignmentScores(read, seedChain.isReverseComplement(), referenceOffset, alignment);
+  //  int move =
+  initializeUngappedAlignmentScores(read, seedChain.isReverseComplement(), referenceOffset, alignment);
 
   if (alnMinScore_ > alignment.getScore()) {
     alignment.setUnmapped();
@@ -424,10 +440,12 @@ int findBest(const Alignments& alignments)
 {
   const auto maxElement = std::max_element(
       alignments.begin(), alignments.end(), [](const Alignment& left, const Alignment& right) {
-        return left.getScore() < right.getScore();
+        return left.getIneligibilityStatus() < right.getIneligibilityStatus() ||
+               (left.getIneligibilityStatus() == right.getIneligibilityStatus() &&
+                left.getScore() < right.getScore());
       });
 
-  if (alignments.end() == maxElement || maxElement->isUnmapped()) {
+  if (alignments.end() == maxElement || maxElement->isUnmapped() || maxElement->getIneligibilityStatus()) {
     return -1;
   }
   return std::distance(alignments.begin(), maxElement);
@@ -540,10 +558,17 @@ AlignmentPairs::iterator Aligner::getAlignments(
   // find all combinations from seeds
   for (unsigned i0 = 0; pairsFound[0].size() > i0; ++i0) {
     auto& chain0 = chainBuilders_[0].at(i0);
+    if (unpairedAlignments_[0].at(i0).getIneligibilityStatus()) {
+      continue;
+    }
+
     for (unsigned i1 = 0; pairsFound[1].size() > i1; ++i1) {
-      auto&      chain1 = chainBuilders_[1].at(i1);
-      const bool hasBestUnpaired =
-          !chain0.isFiltered() && !chain1.isFiltered() && ((bestOffset0 == i0) || (bestOffset1 == i1));
+      if (unpairedAlignments_[1].at(i1).getIneligibilityStatus()) {
+        continue;
+      }
+      auto&      chain1          = chainBuilders_[1].at(i1);
+      const bool hasBestUnpaired = !chain0.isFiltered() && !chain1.isFiltered() &&
+                                   ((std::size_t(bestOffset0) == i0) || (std::size_t(bestOffset1) == i1));
       const bool isPair = pairMatch(insertSizeParameters, readPair, chain0, chain1);
       if (isPair) {
         pairsFound[0].at(i0) = true;
@@ -574,9 +599,15 @@ AlignmentPairs::iterator Aligner::getAlignments(
   if (insertSizeParameters.isInitDone()) {
     // rescue for those that did not make any seed pairs
     for (unsigned i0 = 0; pairsFound[0].size() > i0; ++i0) {
+      if (unpairedAlignments_[0].at(i0).getIneligibilityStatus()) {
+        continue;
+      }
       if (!pairsFound[0][i0]) {
         const auto& anchoredSeedChain = chainBuilders_[0].at(i0);
         auto&       anchoredAlignment = unpairedAlignments_[0].at(i0);
+        if (anchoredAlignment.getIneligibilityStatus()) {
+          continue;
+        }
 
         if (!anchoredSeedChain.isFiltered() && rescuePair(
                                                    insertSizeParameters,
@@ -598,9 +629,16 @@ AlignmentPairs::iterator Aligner::getAlignments(
     }
 
     for (unsigned i1 = 0; pairsFound[1].size() > i1; ++i1) {
+      if (unpairedAlignments_[1].at(i1).getIneligibilityStatus()) {
+        continue;
+      }
       if (!pairsFound[1][i1]) {
         const auto& anchoredSeedChain = chainBuilders_[1].at(i1);
         auto&       anchoredAlignment = unpairedAlignments_[1].at(i1);
+        if (anchoredAlignment.getIneligibilityStatus()) {
+          continue;
+        }
+
         if (!anchoredSeedChain.isFiltered() && rescuePair(
                                                    insertSizeParameters,
                                                    pairBuilder,
@@ -625,6 +663,9 @@ AlignmentPairs::iterator Aligner::getAlignments(
   if (-1 != bestOffset0) {
     const int i0 = bestOffset0;
     for (unsigned i1 = pairsFound[1].size(); unpairedAlignments_[1].size() > i1; ++i1) {
+      if (unpairedAlignments_[1].at(i1).getIneligibilityStatus()) {
+        continue;
+      }
       makePair(
           insertSizeParameters,
           readPair,
@@ -644,6 +685,9 @@ AlignmentPairs::iterator Aligner::getAlignments(
   if (-1 != bestOffset1) {
     const int i1 = bestOffset1;
     for (unsigned i0 = pairsFound[0].size(); unpairedAlignments_[0].size() > i0; ++i0) {
+      if (unpairedAlignments_[0].at(i0).getIneligibilityStatus()) {
+        continue;
+      }
       makePair(
           insertSizeParameters,
           readPair,
@@ -664,72 +708,79 @@ AlignmentPairs::iterator Aligner::getAlignments(
   bestOffset0 = findBest(unpairedAlignments_[0]);
   // make single-ended pairs
   if (-1 != bestOffset0) {
-    Alignment&       best0 = unpairedAlignments_[0].at(bestOffset0);
-    align::Alignment unmappedR1(
-        align::AlignmentHeader::MULTIPLE_SEGMENTS | align::AlignmentHeader::UNMAPPED |
-            align::AlignmentHeader::LAST_IN_TEMPLATE,
-        alnMinScore_);
-    unmappedR1.setReference(best0.getReference());
-    unmappedR1.setNextReference(best0.getReference());
-    unmappedR1.setPosition(best0.getPosition());
-    unmappedR1.setNextPosition(best0.getPosition());
-    unpairedAlignments_[1].append(unmappedR1);
+    Alignment& best0 = unpairedAlignments_[0].at(bestOffset0);
+    if (!best0.getIneligibilityStatus()) {
+      align::Alignment unmappedR1(
+          align::AlignmentHeader::MULTIPLE_SEGMENTS | align::AlignmentHeader::UNMAPPED |
+              align::AlignmentHeader::LAST_IN_TEMPLATE,
+          ((-1 != bestOffset1 && unpairedAlignments_[1].at(bestOffset1).getIneligibilityStatus())
+               ? std::max(alnMinScore_, unpairedAlignments_[1].at(bestOffset1).getScore())
+               : alnMinScore_));
+      unmappedR1.setReference(best0.getReference());
+      unmappedR1.setNextReference(best0.getReference());
+      unmappedR1.setPosition(best0.getPosition());
+      unmappedR1.setNextPosition(best0.getPosition());
+      unpairedAlignments_[1].append(unmappedR1);
 
-    const int m2a_scale =
-        mapq2aln(similarity_.getSnpCost(), std::max(aln_cfg_mapq_min_len_, readPair.getLength()));
-    const int pair_pen = (aln_cfg_unpaired_pen_ * m2a_scale) >> 10;
-    alignmentPairs.push_back(AlignmentPair(
-        best0,
-        chainBuilders_[0].size() > bestOffset0 ? &chainBuilders_[0].at(bestOffset0) : 0,
-        unpairedAlignments_[1].back(),
-        best0.getScore() + unmappedR1.getScore() - pair_pen,
-        best0.getPotentialScore() + unmappedR1.getScore() - pair_pen));
-    bestPairedScore = std::max(bestPairedScore, alignmentPairs.back().getScore());
+      const int m2a_scale =
+          mapq2aln(similarity_.getSnpCost(), std::max(aln_cfg_mapq_min_len_, readPair.getLength()));
+      const int pair_pen = (aln_cfg_unpaired_pen_ * m2a_scale) >> 10;
+      alignmentPairs.push_back(AlignmentPair(
+          best0,
+          chainBuilders_[0].size() > std::size_t(bestOffset0) ? &chainBuilders_[0].at(bestOffset0) : 0,
+          unpairedAlignments_[1].back(),
+          best0.getScore() + unmappedR1.getScore() - pair_pen,
+          best0.getPotentialScore() + unmappedR1.getScore() - pair_pen));
+      bestPairedScore = std::max(bestPairedScore, alignmentPairs.back().getScore());
 #ifdef TRACE_ALIGNMENTS
-    std::cerr << "[ALIGNMENT]\tsep0\t" << alignmentPairs.back() << std::endl;
+      std::cerr << "[ALIGNMENT]\tsep0\t" << alignmentPairs.back() << std::endl;
 #endif
-    const AlignmentPair& pair = alignmentPairs.back();
-    DRAGEN_ALN_RESULT_LOG << "PAIR_RESULT:"
-                          << " type="
-                          << "se_pair"
-                          << ", paired=" << 0 << ", pair_pen=" << pair_pen
-                          << ", pair_score=" << pair.getScore() << std::endl;
+      const AlignmentPair& pair = alignmentPairs.back();
+      DRAGEN_ALN_RESULT_LOG << "PAIR_RESULT:"
+                            << " type="
+                            << "se_pair"
+                            << ", paired=" << 0 << ", pair_pen=" << pair_pen
+                            << ", pair_score=" << pair.getScore() << std::endl;
+    }
   }
 
   // in case rescues have added something better
   bestOffset1 = findBest(unpairedAlignments_[1]);
   if (-1 != bestOffset1) {
     Alignment& best1 = unpairedAlignments_[1].at(bestOffset1);
+    if (!best1.getIneligibilityStatus()) {
+      align::Alignment unmappedR0(
+          align::AlignmentHeader::MULTIPLE_SEGMENTS | align::AlignmentHeader::UNMAPPED |
+              align::AlignmentHeader::FIRST_IN_TEMPLATE,
+          ((-1 != bestOffset0 && unpairedAlignments_[0].at(bestOffset0).getIneligibilityStatus())
+               ? std::max(alnMinScore_, unpairedAlignments_[0].at(bestOffset0).getScore())
+               : alnMinScore_));
+      unmappedR0.setReference(best1.getReference());
+      unmappedR0.setNextReference(best1.getReference());
+      unmappedR0.setPosition(best1.getPosition());
+      unmappedR0.setNextPosition(best1.getPosition());
+      unpairedAlignments_[0].append(unmappedR0);
 
-    align::Alignment unmappedR0(
-        align::AlignmentHeader::MULTIPLE_SEGMENTS | align::AlignmentHeader::UNMAPPED |
-            align::AlignmentHeader::FIRST_IN_TEMPLATE,
-        alnMinScore_);
-    unmappedR0.setReference(best1.getReference());
-    unmappedR0.setNextReference(best1.getReference());
-    unmappedR0.setPosition(best1.getPosition());
-    unmappedR0.setNextPosition(best1.getPosition());
-    unpairedAlignments_[0].append(unmappedR0);
-
-    const int m2a_scale =
-        mapq2aln(similarity_.getSnpCost(), std::max(aln_cfg_mapq_min_len_, readPair.getLength()));
-    const int pair_pen = (aln_cfg_unpaired_pen_ * m2a_scale) >> 10;
-    alignmentPairs.push_back(AlignmentPair(
-        unpairedAlignments_[0].back(),
-        best1,
-        chainBuilders_[1].size() > bestOffset1 ? &chainBuilders_[1].at(bestOffset1) : 0,
-        best1.getScore() + unmappedR0.getScore() - pair_pen,
-        best1.getPotentialScore() + unmappedR0.getScore() - pair_pen));
-    bestPairedScore = std::max(bestPairedScore, alignmentPairs.back().getScore());
+      const int m2a_scale =
+          mapq2aln(similarity_.getSnpCost(), std::max(aln_cfg_mapq_min_len_, readPair.getLength()));
+      const int pair_pen = (aln_cfg_unpaired_pen_ * m2a_scale) >> 10;
+      alignmentPairs.push_back(AlignmentPair(
+          unpairedAlignments_[0].back(),
+          best1,
+          chainBuilders_[1].size() > std::size_t(bestOffset1) ? &chainBuilders_[1].at(bestOffset1) : 0,
+          best1.getScore() + unmappedR0.getScore() - pair_pen,
+          best1.getPotentialScore() + unmappedR0.getScore() - pair_pen));
+      bestPairedScore = std::max(bestPairedScore, alignmentPairs.back().getScore());
 #ifdef TRACE_ALIGNMENTS
-    std::cerr << "[ALIGNMENT]\tsep1\t" << alignmentPairs.back() << std::endl;
+      std::cerr << "[ALIGNMENT]\tsep1\t" << alignmentPairs.back() << std::endl;
 #endif
-    const AlignmentPair& pair = alignmentPairs.back();
-    DRAGEN_ALN_RESULT_LOG << "PAIR_RESULT:"
-                          << " type="
-                          << "se_pair"
-                          << ", paired=" << 0 << ", pair_pen=" << pair_pen
-                          << ", pair_score=" << pair.getScore() << std::endl;
+      const AlignmentPair& pair = alignmentPairs.back();
+      DRAGEN_ALN_RESULT_LOG << "PAIR_RESULT:"
+                            << " type="
+                            << "se_pair"
+                            << ", paired=" << 0 << ", pair_pen=" << pair_pen
+                            << ", pair_score=" << pair.getScore() << std::endl;
+    }
   }
 
   // when running without sw-all, apply smith-waterman to all that matters

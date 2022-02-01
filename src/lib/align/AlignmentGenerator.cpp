@@ -70,6 +70,16 @@ void AlignmentGenerator::updateFetchChain(const Read& read, map::SeedChain& seed
   }
 }
 
+void updateIneligibility(const reference::HashtableConfig& hashtableConfig, Alignment& alignment)
+{
+  const auto& sequences = hashtableConfig.getSequences();
+  const auto& sequence  = sequences.at(alignment.getReference());
+  if (alignment.getPosition() + alignment.getCigar().getReferenceLength() <= 0 ||
+      sequence.seqLen <= alignment.getPosition()) {
+    alignment.setIneligibilityStatus(true);
+  }
+}
+
 bool AlignmentGenerator::generateAlignment(
     const ScoreType alnMinScore,
     const Read&     read,
@@ -110,7 +120,9 @@ bool AlignmentGenerator::generateAlignment(
     //    because the seed would still be the same as in the “holes” on the reference and hence it will be
     //    flagged in the 0>referenceCordinate.second logic branch To explicitly flag it here would be easier
     //    to read the code
-    alignment.setIneligibilityStatus(true);
+    //
+    // Note: this is not the best place to update eligibility. It is done before further down.
+    // alignment.setIneligibilityStatus(true);
     // RP: I was tempted to simply return false from here but according to FZ we still need to perform the s-w
     // alignment.
   }
@@ -216,7 +228,6 @@ bool AlignmentGenerator::generateAlignment(
       // TODO:consider if there are second layer of holes(padding bytes) within reference.bin and also need to
       // redo CIGAR.
       referenceCoordinates.second = 0;
-      alignment.setIneligibilityStatus(true);
     }
   }
 
@@ -224,6 +235,8 @@ bool AlignmentGenerator::generateAlignment(
   //    alignment.setReferenceName(std::string(hashtableConfig.getSequenceNames()[referenceCoordinates.first]));
   alignment.setReference(referenceCoordinates.first);
   alignment.setPosition(referenceCoordinates.second);
+
+  updateIneligibility(referenceDir_.getHashtableConfig(), alignment);
 
   if (alnMinScore > alignment.getScore()) {
     alignment.setUnmapped();

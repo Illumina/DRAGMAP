@@ -47,7 +47,7 @@ void ChainBuilder::addSeedPosition(
 /////////
 #ifdef TRACE_SEED_CHAINS
     else {
-      std::cerr << seedPosition << "  Rejected by: " << seedChain << std::endl;
+      //      std::cerr << seedPosition << "  Rejected by: " << seedChain << std::endl;
     }
 #endif
     /////////
@@ -113,16 +113,16 @@ void ChainBuilder::filterChains()
           maxcov_end >= inferior->lastReadBase() - len_div4_v && max_coverage >= cov_thresh &&
           !inferior->isExtra() && !inferior->hasOnlyRandomSamples()) {
         inferior->setFiltered(true);
-      }
 #ifdef TRACE_SEED_CHAINS
-      std::cerr <<  // "superior:" << *superior << "\n"
-          "inferior:" << *inferior << std::endl;
-      std::cerr << "chain_length=" << inferior->getReadCovLength() << ",len_div4_v=" << len_div4_v
-                << ",max_coverage=" << max_coverage << ",cov_thresh=" << cov_thresh
-                << ",maxcov_beg=" << maxcov_beg << ",maxcov_end=" << maxcov_end
-                << ",map_cfg.chain_filt_ratio=" << chain_filt_ratio
-                << " chainFilterConstant_:" << chainFilterConstant_ << std::endl;
+        std::cerr <<  // "superior:" << *superior << "\n"
+            "inferior:" << *inferior << std::endl;
+        std::cerr << "chain_length=" << inferior->getReadCovLength() << ",len_div4_v=" << len_div4_v
+                  << ",max_coverage=" << max_coverage << ",cov_thresh=" << cov_thresh
+                  << ",maxcov_beg=" << maxcov_beg << ",maxcov_end=" << maxcov_end
+                  << ",map_cfg.chain_filt_ratio=" << chain_filt_ratio
+                  << " chainFilterConstant_:" << chainFilterConstant_ << std::endl;
 #endif
+      }
     }
   }
 

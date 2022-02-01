@@ -118,7 +118,9 @@ uint16_t VectorSmithWaterman::align(
   score = result->score1;
 
   align_destroy(result);
-  return score - (softClipStart ? 0 : unclipScore_) - (softClipEnd ? 0 : unclipScore_);
+  uint16_t unclipScoreAdjsutment = (softClipStart ? 0 : unclipScore_) + (softClipEnd ? 0 : unclipScore_);
+  unclipScoreAdjsutment          = std::min(unclipScoreAdjsutment, score);
+  return score - unclipScoreAdjsutment;
 }
 
 // converts to dos-like operations list

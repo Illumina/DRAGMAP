@@ -234,15 +234,19 @@ bool AlignmentRescue::scan(
       const bool reversedRescue = isReversedRescue(anchoredChain);
       rescuedChain.setReverseComplement(reversedRescue);
       if (bestCounts[0] <= RESCUE_MAX_SNPS) {
-        const sequences::Seed seed(&rescuedRead, 0, RESCUE_SEED_LENGTH);
-        const int64_t         referencePosition =
+        const sequences::Seed seed(
+            &rescuedRead, 0, std::min((size_t)RESCUE_SEED_LENGTH, rescuedRead.getLength()));
+        const int64_t referencePosition =
             rescueIntervalStart +
             (reversedRescue ? (referenceBases.size() - bestOffsets[0] - RESCUE_SEED_LENGTH) : bestOffsets[0]);
         rescuedChain.addSeedPosition(map::SeedPosition(seed, referencePosition, 0), false);
       }
       if (bestCounts[1] <= RESCUE_MAX_SNPS) {
         const sequences::Seed seed(
-            &rescuedRead, rescuedRead.getLength() - RESCUE_SEED_LENGTH, RESCUE_SEED_LENGTH);
+            &rescuedRead,
+            std::max(0, (int)rescuedRead.getLength() - RESCUE_SEED_LENGTH),
+            std::min((size_t)RESCUE_SEED_LENGTH, rescuedRead.getLength()));
+
         const int64_t referencePosition =
             rescueIntervalStart +
             (reversedRescue

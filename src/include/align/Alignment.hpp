@@ -197,7 +197,7 @@ public:
 
   void setIneligibilityStatus(bool status) { ineligible_ = status; }
 
-  bool getIneligibilityStatus() { return ineligible_; }
+  bool getIneligibilityStatus() const { return ineligible_; }
 
   bool isDuplicate(const Alignment& other) const
   {
@@ -258,7 +258,7 @@ private:
               << (aln.isReverseComplement() ? "r" : "f") << (aln.isUnmapped() ? "u," : ",") << "-"
               << aln.getNextReference() << ":" << aln.getNextPosition()
               << (aln.isReverseComplementNextSegment() ? "r," : "f,") << aln.cigar_
-              << (aln.perfect_ ? "perf" : "") << ")";
+              << (aln.perfect_ ? "perf," : "") << (aln.ineligible_ ? "inel" : "") << ")";
   }
 
   template <typename QueryIt, typename DbIt>

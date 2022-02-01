@@ -197,6 +197,11 @@ private:
       const AlignmentRescue       alignmentRescue,
       AlignmentPairs&             alignmentPairs);
   void runSmithWatermanWorthy(const Read& read, map::ChainBuilder& chainBuilder, Alignments& alignments);
+  void updateIneligibility(
+      const reference::HashtableConfig& hashtableConfig,
+      const size_t                      referenceOffset,
+      const Read&                       read,
+      Alignment&                        alignment);
 };
 
 }  // namespace align

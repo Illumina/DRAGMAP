@@ -25,6 +25,10 @@ Alignments::const_iterator findSecondBest(
 {
   Alignments::const_iterator ret = alignments.end();
   for (Alignments::const_iterator it = alignments.begin(); alignments.end() != it; ++it) {
+    if (it->getIneligibilityStatus()) {
+      // Single Picker is being used or paired data which may contain ineligibles
+      continue;
+    }
     if (!it->isUnmapped() && (alignments.end() == ret || ret->getScore() < it->getScore()) &&
         !best->isDuplicate(*it) && best->isOverlap(*it)) {
       ret = it;
@@ -39,6 +43,10 @@ Alignments::const_iterator findSecondBest(
     //  std::cerr << "list_se_min:" << list_se_min << std::endl;
 
     for (Alignments::const_iterator it = alignments.begin(); alignments.end() != it; ++it) {
+      if (it->getIneligibilityStatus()) {
+        // Single Picker is being used or paired data which may contain ineligibles
+        continue;
+      }
       if (!it->isUnmapped() && best != &*it &&
           (it->getScore() > list_se_min && it->getScore() <= list_se_max)) {
         //        std::cerr << "near sub:" << *it << std::endl;
@@ -63,6 +71,10 @@ Alignments::iterator SinglePicker::findSupplementary(
 {
   Alignments::iterator ret = alignments.end();
   for (Alignments::iterator it = alignments.begin(); alignments.end() != it; ++it) {
+    if (it->getIneligibilityStatus()) {
+      // Single Picker is being used or paired data which may contain ineligibles
+      continue;
+    }
     if ((alignments.end() == ret || ret->getScore() < it->getScore()) && !primary->isDuplicate(*it) &&
         (!it->isUnmapped() && !primary->isOverlap(*it))) {
       ret = it;
