@@ -50,7 +50,7 @@ public:
     return *this;
   }
   void setBeginOffset(const size_t offset) { beginOffset_ = offset; }
-  void incrementBeginOffset(const size_t offset) { ++beginOffset_; }
+//  void incrementBeginOffset(const size_t offset) { ++beginOffset_; }
   // reimplement the begin method to support an offset
   //auto begin() const -> decltype(begin()) {return begin() + beginOffset_;}
 private:

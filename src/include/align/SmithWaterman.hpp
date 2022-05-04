@@ -252,7 +252,7 @@ public:
         "|\\^", "|\\<^", "+x",   "+<",   "+^",    "+<^", "+\\", "+\\<", "+\\^", "+\\<^",
     };
 
-    assert(bs < sizeof(BS) / sizeof(BS[0]));
+    assert(size_t(bs) < sizeof(BS) / sizeof(BS[0]));
 
     return BS[bs];
   }
@@ -305,7 +305,7 @@ public:
     int qpos = width - 1;
     int rpos = -width;
 
-    for (int i = 0; history.size() > i; ++i) {
+    for (std::size_t i = 0; history.size() > i; ++i) {
       qpos += (sw.motions_.at(i) == Motion::down);
       rpos += (sw.motions_.at(i) == Motion::right);
       os << "qpos=" << std::max(0, qpos - int(sw.width) + 1)
@@ -349,6 +349,9 @@ public:
 };
 
 typedef SmithWatermanT<unsigned char, short, 48, 16, 9> SmithWaterman;
+
+template <typename C, typename T, int WIDTH, int ALIGN, unsigned STEERING_DELAY>
+const int SmithWatermanT<C, T, WIDTH, ALIGN, STEERING_DELAY>::width;
 
 }  // namespace align
 }  // namespace dragenos

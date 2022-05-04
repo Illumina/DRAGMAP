@@ -130,7 +130,7 @@ public:
   bool     isHit() const { return 0xF != getBits<NOT_HIT_START, NOT_HIT_BITS>(); }
   bool     isDummyHit() const { return 0 == getPosition(); }
   uint64_t getOpCode() const { return getBits<OP_CODE_START, OP_CODE_BITS>(); }
-  uint64_t getType() const { return isHit() ? HIT : getOpCode(); }
+  uint64_t getType() const { return isHit() ? uint64_t(HIT) : getOpCode(); }
   uint8_t  getThreadId() const { return getBits<THREAD_ID_START, THREAD_ID_BITS>(); }
   uint32_t getMatchBits() const { return getBits<MATCH_BITS_START, MATCH_BITS_BITS>(); }
   bool     isLastInThread() const { return getFlag<LF_FLAG>(); }

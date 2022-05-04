@@ -30,11 +30,9 @@ void AlignmentGenerator::generateAlignments(
 
 void AlignmentGenerator::updateFetchChain(const Read& read, map::SeedChain& seedChain, Alignment& alignment)
 {
-  const reference::HashtableConfig& hashtableConfig = referenceDir_.getHashtableConfig();
-
   // only update chain if the alignment is valid
   const size_t referenceOffset = seedChain.firstReferencePosition();
-  auto         refCoords       = hashtableConfig.convertToReferenceCoordinates(referenceOffset);
+  auto         refCoords       = htConfig_.convertToReferenceCoordinates(referenceOffset);
   int          move            = alignment.getPosition() - refCoords.second;
   if (alignment.isPerfect()) {
     if (seedChain.isReverseComplement()) {
@@ -75,7 +73,7 @@ void updateIneligibility(const reference::HashtableConfig& hashtableConfig, Alig
   const auto& sequences = hashtableConfig.getSequences();
   const auto& sequence  = sequences.at(alignment.getReference());
   if (alignment.getPosition() + alignment.getCigar().getReferenceLength() <= 0 ||
-      sequence.seqLen <= alignment.getPosition()) {
+      int(sequence.seqLen) <= alignment.getPosition()) {
     alignment.setIneligibilityStatus(true);
   }
 }
@@ -105,12 +103,11 @@ bool AlignmentGenerator::generateAlignment(
   auto       beginPosition = refStartEnd.first;
   auto       endPosition   = refStartEnd.second + 1;
 
-  const reference::HashtableConfig& hashtableConfig = referenceDir_.getHashtableConfig();
   // endPosition should be bound by sequence end
-  if (not hashtableConfig.beyondLastCfgSequence(refStartEnd.first)) {
-    auto refCoords = hashtableConfig.convertToReferenceCoordinates(refStartEnd.first);
-    const reference::HashtableConfig::Sequence& seq      = hashtableConfig.getSequences().at(refCoords.first);
-    const auto                                  posRange = hashtableConfig.getPositionRange(seq);
+  if (not htConfig_.beyondLastCfgSequence(refStartEnd.first)) {
+    auto refCoords = htConfig_.convertToReferenceCoordinates(refStartEnd.first);
+    const reference::HashtableConfig::Sequence& seq      = htConfig_.getSequences().at(refCoords.first);
+    const auto                                  posRange = htConfig_.getPositionRange(seq);
     endPosition                                          = std::min<int64_t>(endPosition, posRange.second);
     if (endPosition <= beginPosition) return false;
   } else {
@@ -130,10 +127,11 @@ bool AlignmentGenerator::generateAlignment(
 
   //  assert(endPosition > beginPosition);
   database.clear();
+  database.reserve(endPosition - beginPosition + 1);
   if (seedChain.isReverseComplement()) {
-    referenceDir_.getReferenceSequence().getRcBases(beginPosition, endPosition, std::back_inserter(database));
+    refSeq_.getRcBases(beginPosition, endPosition, database);
   } else {
-    referenceDir_.getReferenceSequence().getBases(beginPosition, endPosition, std::back_inserter(database));
+    refSeq_.getBases(beginPosition, endPosition, database);
   }
 
   // align the read for the current seedChain
@@ -201,14 +199,14 @@ bool AlignmentGenerator::generateAlignment(
            beginPosition - seedChain.firstReferencePosition();  // - SmithWaterman::SW_CELLS;
 
     //Alignment::FlagType flags = !read.getPosition() ? Alignment::FIRST_IN_TEMPLATE : Alignment::LAST_IN_TEMPLATE;
-    flags |= seedChain.isReverseComplement() ? Alignment::REVERSE_COMPLEMENT : 0;
+    flags |= seedChain.isReverseComplement() ? Alignment::REVERSE_COMPLEMENT : Alignment::NONE;
   }
   // get the reference name from the ReferenceDir and the first diagonal
   const size_t referenceOffset      = seedChain.firstReferencePosition();
-  auto         referenceCoordinates = hashtableConfig.convertToReferenceCoordinates(referenceOffset + move);
+  auto         referenceCoordinates = htConfig_.convertToReferenceCoordinates(referenceOffset + move);
 
   if (0 > referenceCoordinates.second) {
-    if (std::abs(referenceCoordinates.second) < read.getLength()) {
+    if (std::size_t(std::abs(referenceCoordinates.second)) < read.getLength()) {
       // oops! the sequence starts before reference and the read is long enough to reach the next contig. Redo
       // CIGAR.
       move = int(alignment.setCigarOperations(
@@ -222,7 +220,7 @@ bool AlignmentGenerator::generateAlignment(
              beginPosition - seedChain.firstReferencePosition();  // - SmithWaterman::SW_CELLS;
       // get the reference name from the ReferenceDir and the first diagonal
       const size_t referenceOffset = seedChain.firstReferencePosition();
-      referenceCoordinates         = hashtableConfig.convertToReferenceCoordinates(referenceOffset + move);
+      referenceCoordinates         = htConfig_.convertToReferenceCoordinates(referenceOffset + move);
     } else {
       // the whole read falls into holes of reference sequences listed in hash_table.cfg)
       // TODO:consider if there are second layer of holes(padding bytes) within reference.bin and also need to
@@ -236,7 +234,7 @@ bool AlignmentGenerator::generateAlignment(
   alignment.setReference(referenceCoordinates.first);
   alignment.setPosition(referenceCoordinates.second);
 
-  updateIneligibility(referenceDir_.getHashtableConfig(), alignment);
+  updateIneligibility(htConfig_, alignment);
 
   if (alnMinScore > alignment.getScore()) {
     alignment.setUnmapped();
@@ -245,8 +243,8 @@ bool AlignmentGenerator::generateAlignment(
   // debug info
 #ifdef TRACE_ALIGNMENTS
   std::cerr << "[ALIGNMENT]\tsmith-waterman\t" << alignment << "\t" << seedChain
-            << "\tcontig:" << std::string(hashtableConfig.getSequenceNames()[referenceCoordinates.first])
-            << "(" << referenceCoordinates.first << "):" << referenceCoordinates.second << std::endl;
+            << "\tcontig:" << std::string(htConfig_.getSequenceNames()[referenceCoordinates.first]) << "("
+            << referenceCoordinates.first << "):" << referenceCoordinates.second << std::endl;
 #endif
 
   return true;

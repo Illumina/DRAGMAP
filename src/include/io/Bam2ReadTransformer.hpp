@@ -35,7 +35,10 @@ public:
   friend DumpT& dump(DumpT& dump, const BamToReadTransformer& transformer);
 
 public:
-  BamToReadTransformer(const char qnameSuffixDelim = DEFAULT_QNAME_DELIM) {}
+  BamToReadTransformer(const char qnameSuffixDelim = DEFAULT_QNAME_DELIM)
+    : qnameSuffixDelim_(qnameSuffixDelim)
+  {
+  }
 
   void operator()(const bam::BamRecordAccessor& bra, unsigned pos, uint64_t fragmentId, sequences::Read& read)
   {

@@ -4,6 +4,6 @@ bindir?=/bin
 
 install: $(programs:%=install_%)
 
-install_%: $(BUILD)/%
+install_%: $(DRAGEN_OS_BUILD)/%
 	$(INSTALL) $<  $(DESTDIR)$(bindir)/$*
 	

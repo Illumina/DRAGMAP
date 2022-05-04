@@ -63,6 +63,11 @@ class BamRecordAccessor {
       return std::distance(first, second) == std::distance(that.first, that.second) &&
              std::equal(first, second, that.first);
     }
+
+    friend std::ostream& operator<<(std::ostream& os, const Name& name)
+    {
+      return os << std::string_view(name.first, std::distance(name.first, name.second));
+    }
   };
 
   const BamRecordHeader* h_;
@@ -82,10 +87,12 @@ public:
   bool              suplementary() const { return h_->flag & Flag::SUPPLEMENTARY_ALIGNMENT; }
   bool              reverse() const { return h_->flag & Flag::REVERSE_COMPLEMENT; }
   bool              paired() const { return h_->flag & Flag::MULTIPLE_SEGMENTS; }
+  bool              first() const { return h_->flag & Flag::FIRST_IN_TEMPLATE; }
+  bool              last() const { return h_->flag & Flag::LAST_IN_TEMPLATE; }
   const std::size_t readLength() const { return h_->l_seq; }
 
   const char* nameBegin() const { return h_->read_name; }
-  const char* nameEnd() const { return nameBegin() + h_->l_read_name; }
+  const char* nameEnd() const { return nameBegin() + h_->l_read_name - 1; }
   const Name  getName(const char qnameSuffixDelim) const
   {
     return Name(nameBegin(), std::find(nameBegin(), nameEnd(), qnameSuffixDelim));

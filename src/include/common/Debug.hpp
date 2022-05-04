@@ -100,13 +100,6 @@ static std::ostream nostream(0);
   }
 #endif
 
-inline std::string parseStat(const std::string& stat)
-{
-  std::vector<std::string> statFields;
-  boost::algorithm::split(statFields, stat, boost::algorithm::is_any_of(" "));
-  return std::string(statFields.at(22) + "vm " + statFields.at(23) + "res");
-}
-
 class ScopedMallocBlock : boost::noncopyable {
 public:
   enum Mode { Invalid = 0, Off, Warning, Strict };
@@ -235,7 +228,7 @@ class CerrLocker {
   boost::io::ios_base_all_saver             ias_;
 
 public:
-  CerrLocker(const CerrLocker& that) : lock_(cerrMutex_), ias_(std::cerr) {}
+  CerrLocker(const CerrLocker& /* that */) : lock_(cerrMutex_), ias_(std::cerr) {}
   CerrLocker() : lock_(cerrMutex_), ias_(std::cerr) {}
   operator bool() const { return false; }
 

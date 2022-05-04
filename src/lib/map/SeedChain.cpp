@@ -120,7 +120,7 @@ bool SeedChain::passesRadiusTest(const uint32_t diagonal) const
          (rightmost / SMALL_QUANTIZER + MAX_RADIUS >= diagonal / SMALL_QUANTIZER);
 }
 
-bool SeedChain::terminates(const Seed& seed) const
+bool SeedChain::terminates(const Seed& /*seed*/) const
 {
   return (!seedPositions_.empty() and diagonalTable_.empty());
 }

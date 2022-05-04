@@ -104,6 +104,31 @@ TEST(PairBuilder, updateMapq)
   ASSERT_EQ(48, alignments.front()[1].getMapq());
 }
 
+unsigned char encodeBase(const char base)
+{
+  switch (base) {
+  case 'A':
+    return 1;
+    break;
+  case 'C':
+    return 2;
+    break;
+  case 'G':
+    return 4;
+    break;
+  case 'T':
+    return 8;
+    break;
+  default:
+    throw std::invalid_argument(std::string("unknown base: ") + base);
+  }
+}
+
+void text2Bases(char* begin, char* end)
+{
+  std::transform(begin, end, begin, [](const char c){return encodeBase(c);});
+}
+
 TEST(PairBuilder, pickBest1)
 {
   const short                             match    = 1;
@@ -112,13 +137,15 @@ TEST(PairBuilder, pickBest1)
   const ReferenceDirDummy                 referenceDir;
   const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50);
 
-  const unsigned char reference[] =
+  char reference[] =
       "TCCATCGAGATGGACGCCGTTGGCGCTCTCCGTCTTTCTCCATTGCGTCGTGGCCTTGCTATTGACTCTACTGTAGACATTTTTACTTTTTATGTCCCTCTTATG";
 
-  static const unsigned SEQUENCE_FLANKS = 20;
+  text2Bases(reference, reference + sizeof(reference) - 1);
+
+  static const unsigned SEQUENCE_FLANKS = 10;
   const std::string     name            = "blah";
   const std::string     bases(
-      (const char*)reference + SEQUENCE_FLANKS, (const char*)reference + sizeof(reference) - SEQUENCE_FLANKS);
+      (const char*)reference + SEQUENCE_FLANKS, (const char*)reference + sizeof(reference) - 1 - SEQUENCE_FLANKS * 2);
   const std::string qualities =
       "#AAAAEEEEEEEEEEEEEEEEEEEEEEE6EEEEEEEEEEEEEEEEEAEAEEEEEEEEEEEEAEEE/EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE";
 
@@ -139,6 +166,8 @@ TEST(PairBuilder, pickBest1)
       Qualities(qualities.begin() + SEQUENCE_FLANKS, qualities.begin() + SEQUENCE_FLANKS + bases.length()),
       id,
       position);
+
+//  std::cerr << readPair[1] << std::endl;
 
   AlignmentPairs alignments;
 
@@ -193,8 +222,8 @@ TEST(PairBuilder, pickBest1)
   const auto best = pairBuilder.pickBest(readPair, alignments, unpaired);
   // unique alignment pair. Both ends get mapq 60
   ASSERT_NE(alignments.end(), best);
-  ASSERT_EQ(488, best->at(0).getMapq());
-  ASSERT_EQ(155, best->at(1).getMapq());
+  ASSERT_EQ(460, best->at(0).getMapq());
+  ASSERT_EQ(137, best->at(1).getMapq());
 }
 
 TEST(PairBuilder, pickBest2)
@@ -205,8 +234,9 @@ TEST(PairBuilder, pickBest2)
   const ReferenceDirDummy                 referenceDir;
   const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50);
 
-  const unsigned char reference[] =
+  char reference[] =
       "TCCATCGAGATGGACGCCGTTGGCGCTCTCCGTCTTTCTCCATTGCGTCGTGGCCTTGCTATTGACTCTACTGTAGACATTTTTACTTTTTATGTCCCTCTTATG";
+  text2Bases(reference, reference + sizeof(reference) - 1);
 
   static const unsigned SEQUENCE_FLANKS = 20;
   const std::string     name            = "blah";
@@ -310,8 +340,9 @@ TEST(PairBuilder, pickBest3)
   const ReferenceDirDummy                 referenceDir;
   const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50);
 
-  const unsigned char reference[] =
+  char reference[] =
       "TCCATCGAGATGGACGCCGTTGGCGCTCTCCGTCTTTCTCCATTGCGTCGTGGCCTTGCTATTGACTCTACTGTAGACATTTTTACTTTTTATGTCCCTCTTATG";
+  text2Bases(reference, reference + sizeof(reference) - 1);
 
   static const unsigned SEQUENCE_FLANKS = 20;
   const std::string     name            = "blah";
@@ -415,8 +446,9 @@ TEST(PairBuilder, pickBest4)
   const ReferenceDirDummy                 referenceDir;
   const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50);
 
-  const unsigned char reference[] =
+  char reference[] =
       "TCCATCGAGATGGACGCCGTTGGCGCTCTCCGTCTTTCTCCATTGCGTCGTGGCCTTGCTATTGACTCTACTGTAGACATTTTTACTTTTTATGTCCCTCTTATG";
+  text2Bases(reference, reference + sizeof(reference) - 1);
 
   static const unsigned SEQUENCE_FLANKS = 20;
   const std::string     name            = "blah";

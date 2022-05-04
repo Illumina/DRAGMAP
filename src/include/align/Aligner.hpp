@@ -15,21 +15,10 @@
 #ifndef ALIGN_ALIGNER_HPP
 #define ALIGN_ALIGNER_HPP
 
-#include <sys/mman.h>
-#include <functional>
-#include <vector>
-
-#include <boost/filesystem.hpp>
-
 #include "align/AlignmentGenerator.hpp"
 #include "align/AlignmentRescue.hpp"
-#include "align/Alignments.hpp"
-#include "align/InsertSizeParameters.hpp"
 #include "align/PairBuilder.hpp"
-#include "align/SinglePicker.hpp"
-#include "map/Mapper.hpp"
 #include "reference/Hashtable.hpp"
-#include "reference/HashtableConfig.hpp"
 #include "reference/ReferenceDir.hpp"
 #include "sequences/Read.hpp"
 #include "sequences/ReadPair.hpp"
@@ -45,19 +34,20 @@ public:
   // Aligner(Aligner&&) = delete;
   //Aligner &operator=(Aligner&&) = delete;
   Aligner(
-      const reference::ReferenceDir& referenceDir,
-      const reference::Hashtable&    hashtable,
-      bool                           mapOnly,
-      const int                      swAll,
-      const SimilarityScores&        similarity,
-      const int                      gapInit,
-      const int                      gapExtend,
-      const int                      unclipScore,
-      const int                      alnMinScore,
-      const int                      aln_cfg_mapq_min_len,
-      const uint32_t                 alignerUnpairedPen,
-      const double                   aln_cfg_filter_len_ratio,
-      const bool                     vectorizedSW);
+      const reference::ReferenceSequence& refSeq,
+      const reference::HashtableConfig&   htConfig,
+      const reference::Hashtable&         hashtable,
+      bool                                mapOnly,
+      const int                           swAll,
+      const SimilarityScores&             similarity,
+      const int                           gapInit,
+      const int                           gapExtend,
+      const int                           unclipScore,
+      const int                           alnMinScore,
+      const int                           aln_cfg_mapq_min_len,
+      const uint32_t                      alignerUnpairedPen,
+      const double                        aln_cfg_filter_len_ratio,
+      const bool                          vectorizedSW);
   typedef sequences::Read     Read;
   typedef sequences::ReadPair ReadPair;
   typedef align::Alignment    Alignment;
@@ -135,10 +125,11 @@ public:
   void filter(AlignmentPairs& alignmentPairs, std::array<Alignments, 2>& unpairedAlignments);
 
 private:
-  const reference::ReferenceDir& referenceDir_;
-  const bool                     mapOnly_;
-  const int                      swAll_;
-  const bool                     vectorizedSW_;
+  const reference::ReferenceSequence& refSeq_;
+  const reference::HashtableConfig&   htConfig_;
+  const bool                          mapOnly_;
+  const int                           swAll_;
+  const bool                          vectorizedSW_;
   /// read the hashtable config data and throw on error
   //std::vector<char> getHashtableConfigData(const boost::filesystem::path referenceDir) const;
   /// maps hashtable data and throw on error

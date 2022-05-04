@@ -490,7 +490,7 @@ void regenHashTableError(const char* binFile, const char* liftoverFile)
         sprintf(errorMsg + strlen(errorMsg), "--ht-alt-liftover %s ", liftoverFile);
       }
       if (restOfArgs) {
-        sprintf(errorMsg + strlen(errorMsg), restOfArgs);
+        strncat(errorMsg + strlen(errorMsg), restOfArgs, 2048 - strlen(errorMsg) - 1);
       } else {
         sprintf(errorMsg + strlen(errorMsg), "\n");
       }
@@ -539,7 +539,12 @@ int readHashCfgBin(const char* filename, hashTableConfig_t* config)
   }
 
   config->readBuf = (uint8_t*)malloc(fileSize);
-  fread(config->readBuf, fileSize, 1, fp);
+  if (fread(config->readBuf, fileSize, 1, fp) != fileSize)
+  {
+    sprintf(errorMsg, "failed to read %lu bytes from %s: %s\n", fileSize, filename, (feof(fp) ? "EOF" : strerror(errno)));
+    fclose(fp);
+    return 0;
+  }
 
   config->hdr = (hashTableHeader_t*)config->readBuf;
   // size_t bufOffset = sizeof(hashTableHeader_t);

@@ -88,10 +88,10 @@ void ChainBuilder::filterChains()
 
   SeedChain* inferior = nullptr;
 
-  int maxcov_beg   = std::numeric_limits<int>::max();
-  int maxcov_end   = std::numeric_limits<int>::min();
-  int max_coverage = 0;
-  for (int i = 0; i < seedChainCount_; ++i) {
+  unsigned maxcov_beg   = std::numeric_limits<int>::max();
+  unsigned maxcov_end   = std::numeric_limits<int>::min();
+  unsigned max_coverage = 0;
+  for (std::size_t i = 0; i < seedChainCount_; ++i) {
     if (seedChains_[i].getReadCovLength() > max_coverage) {
       max_coverage = seedChains_[i].getReadCovLength();
       maxcov_beg   = seedChains_[i].firstReadBase();
@@ -99,14 +99,14 @@ void ChainBuilder::filterChains()
     }
   }
 
-  assert(!seedChainCount_ || maxcov_beg != std::numeric_limits<int>::max());
-  assert(!seedChainCount_ || maxcov_end != std::numeric_limits<int>::min());
+  assert(!seedChainCount_ || maxcov_beg != unsigned(std::numeric_limits<int>::max()));
+  assert(!seedChainCount_ || maxcov_end != unsigned(std::numeric_limits<int>::min()));
 
-  for (int j = 0; j < seedChainCount_; ++j) {
+  for (std::size_t j = 0; j < seedChainCount_; ++j) {
     inferior = &seedChains_[j];
 
-    int chain_filt_ratio = int(chainFilterRatio_ * (1 << 8));
-    int cov_thresh       = (chain_filt_ratio * inferior->getReadCovLength()) >> 8;  // + chainFilterConstant_;
+    int      chain_filt_ratio = int(chainFilterRatio_ * (1 << 8));
+    unsigned cov_thresh = (chain_filt_ratio * inferior->getReadCovLength()) >> 8;  // + chainFilterConstant_;
     {
       int len_div4_v = inferior->getReadCovLength() >> 2;
       if (maxcov_beg <= inferior->firstReadBase() + len_div4_v &&

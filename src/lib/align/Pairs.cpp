@@ -223,7 +223,7 @@ bool pairMatch(const InsertSizeParameters& insert_stats, const Alignment& a1, co
   //    ", rct_eff_beg=" << rct_eff_beg << ", rct_eff_end=" << rct_eff_end << std::endl;
 
   return (inp_result.isReverseComplement() xor result_rrec.isReverseComplement() ^
-          InsertSizeParameters::Orientation::pe_orient_ff_c == insert_stats.orientation_) &&
+          (InsertSizeParameters::Orientation::pe_orient_ff_c == insert_stats.orientation_)) &&
          insert_len >= insert_stats.min_ && insert_len <= insert_stats.max_ &&
          inp_result.reference_ == result_rrec.reference_ && !template_bad;
 }

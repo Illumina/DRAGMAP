@@ -93,33 +93,14 @@ int getTerminalWindowSize(unsigned short int& ws_row, unsigned short int& ws_col
     ws_col = ws.ws_col;
     return 0;
   }
+#else   // just return whatever suitable constant dimensions
+  static const int VT100_ROWS = 24;
+  static const int VT100_COLS = 80;
+  ws_row                      = VT100_ROWS;
+  ws_col                      = VT100_COLS;
 #endif  // HAVE_SYS_IOCTL_H
 
   return -1;
-}
-
-int linuxFallocate(int fd, std::size_t offset, std::size_t len)
-{
-#ifdef HAVE_FALLOCATE
-  // FALLOC_FL_KEEP_SIZE is not available on CentOS 5
-#ifdef FALLOC_FL_KEEP_SIZE
-  return fallocate(fd, FALLOC_FL_KEEP_SIZE, offset, len);
-#endif  // FALLOC_FL_KEEP_SIZE
-
-#endif  // HAVE_FALLOCATE
-
-  return 0;
-}
-
-int linuxFtruncate(int fd, std::size_t len)
-{
-// this is not a typo. fallocate and ftruncate have to come together or else we
-// risk creating files with unfilled garbage at the end
-#ifdef HAVE_FALLOCATE
-  return ftruncate(fd, len);
-#endif  // FALLOC_FL_KEEP_SIZE
-
-  return 0;
 }
 
 }  // namespace common
@@ -342,7 +323,7 @@ int64_t clock()
 
 bool isLittleEndian()
 {
-  const uint64_t             v = 0x0706050403020100;
+  const uint64_t v = 0x0706050403020100;
   const unsigned char* const p = reinterpret_cast<const unsigned char*>(&v);
   for (unsigned i = 0; i < sizeof(v); ++i) {
     if (p[i] != i) {
@@ -373,7 +354,7 @@ uint64_t getFileSize(const PathCharType* filePath)
 boost::filesystem::path getModuleFileName()
 {
   char szBuffer[10240];
-  int  readBytes = readlink("/proc/self/exe", szBuffer, sizeof(szBuffer));
+  int readBytes = readlink("/proc/self/exe", szBuffer, sizeof(szBuffer));
   DRAGEN_OS_ASSERT_MSG(-1 != readBytes, "TODO: handle the readlink error: " << errno);
   // readlink does not zero-terminate the string.
   szBuffer[readBytes] = 0;

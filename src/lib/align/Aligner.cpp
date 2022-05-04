@@ -21,7 +21,6 @@
 #include <sys/mman.h>
 #include "common/DragenLogger.hpp"
 #include "common/Exceptions.hpp"
-#include "ssw/ssw_cpp.h"
 
 #include "align/Aligner.hpp"
 #include "align/CalculateRefStartEnd.hpp"
@@ -35,20 +34,22 @@ namespace dragenos {
 namespace align {
 
 Aligner::Aligner(
-    const reference::ReferenceDir& referenceDir,
-    const reference::Hashtable&    hashtable,
-    const bool                     mapOnly,
-    const int                      swAll,
-    const SimilarityScores&        similarity,
-    const int                      gapInit,
-    const int                      gapExtend,
-    const int                      unclipScore,
-    const int                      alnMinScore,
-    const int                      aln_cfg_mapq_min_len,
-    const uint32_t                 aln_cfg_unpaired_pen,
-    const double                   aln_cfg_filter_len_ratio,
-    const bool                     vectorizedSW)
-  : referenceDir_(referenceDir),
+    const reference::ReferenceSequence& refSeq,
+    const reference::HashtableConfig&   htConfig,
+    const reference::Hashtable&         hashtable,
+    const bool                          mapOnly,
+    const int                           swAll,
+    const SimilarityScores&             similarity,
+    const int                           gapInit,
+    const int                           gapExtend,
+    const int                           unclipScore,
+    const int                           alnMinScore,
+    const int                           aln_cfg_mapq_min_len,
+    const uint32_t                      aln_cfg_unpaired_pen,
+    const double                        aln_cfg_filter_len_ratio,
+    const bool                          vectorizedSW)
+  : refSeq_(refSeq),
+    htConfig_(htConfig),
     mapOnly_(mapOnly),
     swAll_(swAll),
     vectorizedSW_(vectorizedSW),
@@ -62,7 +63,7 @@ Aligner::Aligner(
     aln_cfg_unpaired_pen_(aln_cfg_unpaired_pen),
     smithWaterman_(similarity, gapInit, gapExtend, unclipScore),
     vectorSmithWaterman_(similarity, gapInit, gapExtend, unclipScore),
-    alignmentGenerator_(referenceDir_, smithWaterman_, vectorSmithWaterman_, vectorizedSW_),
+    alignmentGenerator_(refSeq_, htConfig_, smithWaterman_, vectorSmithWaterman_, vectorizedSW_),
     chainBuilders_{map::ChainBuilder(aln_cfg_filter_len_ratio), map::ChainBuilder(aln_cfg_filter_len_ratio)}
 {
 }
@@ -117,7 +118,7 @@ void Aligner::generateUngappedAlignments(
 void Aligner::runSmithWatermanAll(
     const Read& read, const map::ChainBuilder& chainBuilder, Alignments& alignments, const int readIdx)
 {
-  for (int i = 0; i < chainBuilder.size(); ++i) {
+  for (std::size_t i = 0; i < chainBuilder.size(); ++i) {
     alignmentGenerator_.generateAlignment(alnMinScore_, read, chainBuilder.at(i), alignments.at(i), readIdx);
   }
 
@@ -144,12 +145,12 @@ void Aligner::updateIneligibility(
 void Aligner::generateUngappedAlignment(const Read& read, map::SeedChain& seedChain, Alignment& alignment)
 {
   FlagType flags = !read.getPosition() ? Alignment::FIRST_IN_TEMPLATE : Alignment::LAST_IN_TEMPLATE;
-  flags |= seedChain.isReverseComplement() ? Alignment::REVERSE_COMPLEMENT : 0;
-  flags |= seedChain.isFiltered() ? Alignment::UNMAPPED : 0;
+  flags |= seedChain.isReverseComplement() ? Alignment::REVERSE_COMPLEMENT : Alignment::NONE;
+  flags |= seedChain.isFiltered() ? Alignment::UNMAPPED : Alignment::NONE;
   alignment.resetFlags(flags);
 
   const size_t referenceOffset = seedChain.firstReferencePosition();
-  updateIneligibility(referenceDir_.getHashtableConfig(), referenceOffset, read, alignment);
+  updateIneligibility(htConfig_, referenceOffset, read, alignment);
 
   if (seedChain.isFiltered()) {
     return;
@@ -210,16 +211,16 @@ unsigned Aligner::calculatePotentialScore(
 int Aligner::initializeUngappedAlignmentScores(
     const Read& read, const bool rcFlag, const size_t referenceOffset, Alignment& alignment)
 {
-  std::string                operations;
-  static const char          ALIGNMENT_MATCH      = Cigar::getOperationName(Cigar::ALIGNMENT_MATCH);
-  static const char          SOFT_CLIP            = Cigar::getOperationName(Cigar::SOFT_CLIP);
-  static const int           SOFT_CLIP_ADJUSTMENT = -5;
-  static const unsigned char N                    = 0xF;
+  std::string       operations;
+  static const char ALIGNMENT_MATCH      = Cigar::getOperationName(Cigar::ALIGNMENT_MATCH);
+  static const char SOFT_CLIP            = Cigar::getOperationName(Cigar::SOFT_CLIP);
+  static const int  SOFT_CLIP_ADJUSTMENT = -5;
+  //  static const unsigned char N                    = 0xF;
   operations.clear();
   const auto& readBases      = rcFlag ? read.getRcBases() : read.getBases();
   int         alignmentScore = -SOFT_CLIP_ADJUSTMENT;
-  int         maxScore       = 0;
-  int         lastPosition   = 0;
+  //  int         maxScore       = 0;
+  //  int         lastPosition   = 0;
   // best stretch with strictly positive scores
   int bestFirst = 0;
   int bestLast  = 0;
@@ -229,19 +230,22 @@ int Aligner::initializeUngappedAlignmentScores(
   int currentLast  = 0;
   int currentScore = 0;
 
-  const reference::HashtableConfig& hashtableConfig = referenceDir_.getHashtableConfig();
-  auto refCoords = hashtableConfig.convertToReferenceCoordinates(referenceOffset);
-  const reference::HashtableConfig::Sequence& seq      = hashtableConfig.getSequences().at(refCoords.first);
-  const auto                                  posRange = hashtableConfig.getPositionRange(seq);
+  auto refCoords                                  = htConfig_.convertToReferenceCoordinates(referenceOffset);
+  const reference::HashtableConfig::Sequence& seq = htConfig_.getSequences().at(refCoords.first);
+  const auto                                  posRange = htConfig_.getPositionRange(seq);
   const int seqLeft = std::min(readBases.size(), posRange.second - referenceOffset);
 
-  for (unsigned i = 0; i < seqLeft; ++i) {
-    const auto          readBase          = readBases[i];
-    const unsigned char referenceBase     = referenceDir_.getReferenceSequence().getBase(referenceOffset + i);
-    const bool          goodReadBase      = (readBase > 0) && (readBase != N);
-    const bool          goodReferenceBase = (referenceBase > 0) && (referenceBase != N);
-    const bool          goodBase          = goodReadBase && goodReferenceBase;
-    const bool          match             = goodBase && (readBase == referenceBase);
+  Database databaseSeqLeft;
+  databaseSeqLeft.reserve(seqLeft + 1);
+  refSeq_.getBases(referenceOffset, referenceOffset + seqLeft, databaseSeqLeft);
+
+  for (int i = 0; i < seqLeft; ++i) {
+    const auto          readBase      = readBases[i];
+    const unsigned char referenceBase = databaseSeqLeft[i];
+    //    const bool          goodReadBase      = (readBase > 0) && (readBase != N);
+    //    const bool          goodReferenceBase = (referenceBase > 0) && (referenceBase != N);
+    //    const bool          goodBase          = goodReadBase && goodReferenceBase;
+    //    const bool          match             = goodBase && (readBase == referenceBase);
     alignmentScore += similarity_(readBase, referenceBase);
     alignmentScore = std::max(0, alignmentScore);
     if (0 == alignmentScore) {
@@ -281,9 +285,20 @@ int Aligner::initializeUngappedAlignmentScores(
   }
   // TODO: check if final soft clip is needed
   int malus = 0;
-  for (unsigned i = bestLast + 1; i < seqLeft; ++i) {
+
+  Database databaseBestLastToSeqLeft;
+  size_t bestToLastRefStart = referenceOffset + bestLast + 1;
+  databaseBestLastToSeqLeft.reserve(seqLeft + 1);
+  refSeq_.getBases(bestToLastRefStart, bestToLastRefStart + seqLeft, databaseBestLastToSeqLeft);
+
+  /*
+  databaseBestLastToSeqLeft.reserve(seqLeft - bestLast + 1);
+  refSeq_.getBases(referenceOffset + bestLast + 1, referenceOffset + bestLast + 1 + seqLeft, databaseBestLastToSeqLeft);
+  */
+  
+  for (int i = bestLast + 1; i < seqLeft; ++i) {
     const auto          readBase      = readBases[i];
-    const unsigned char referenceBase = referenceDir_.getReferenceSequence().getBase(referenceOffset + i);
+    const unsigned char referenceBase = databaseBestLastToSeqLeft[i - (bestLast + 1)];
     malus += similarity_(readBase, referenceBase);
   }
   if (bestLast + 1 < seqLeft && malus >= SOFT_CLIP_ADJUSTMENT) {
@@ -299,18 +314,16 @@ int Aligner::initializeUngappedAlignmentScores(
   alignment.setScore(std::max(0, bestScore));
   alignment.setPotentialScore(calculatePotentialScore(read, bestScore, bestFirst, bestLast + 1));
   Database database;
+  database.reserve(read.getLength() - bestFirst + 1);
   if (alignment.isReverseComplement()) {
-    referenceDir_.getReferenceSequence().getRcBases(
-        referenceOffset + bestFirst, referenceOffset + read.getLength(), std::back_inserter(database));
+    refSeq_.getRcBases(referenceOffset + bestFirst, referenceOffset + read.getLength(), database);
   } else {
-    referenceDir_.getReferenceSequence().getBases(
-        referenceOffset + bestFirst, referenceOffset + read.getLength(), std::back_inserter(database));
+    refSeq_.getBases(referenceOffset + bestFirst, referenceOffset + read.getLength(), database);
   }
   // deal with before reference starts
-  const auto referenceCoordinates =
-      referenceDir_.getHashtableConfig().convertToReferenceCoordinates(referenceOffset);
-  const int refClip = std::max(-referenceCoordinates.second, int64_t(0));
-  const int move    = alignment.setCigarOperations(
+  const auto referenceCoordinates = htConfig_.convertToReferenceCoordinates(referenceOffset);
+  const int  refClip              = std::max(-referenceCoordinates.second, int64_t(0));
+  const int  move                 = alignment.setCigarOperations(
       operations,
       database.begin(),
       database.end(),
@@ -370,20 +383,19 @@ void Aligner::getAlignments(const Read& read, Alignments& alignments)
 }
 
 bool Aligner::rescueMate(
-    const InsertSizeParameters& insertSizeParameters,
-    const Read&                 anchoredRead,
-    const Read&                 rescuedRead,
-    const map::SeedChain&       anchoredSeedChain,
-    Alignment&                  anchoredAlignment,
-    const AlignmentRescue&      alignmentRescue,
-    map::SeedChain&             rescuedSeedChain,
-    Alignment&                  rescuedAlignment,
-    const int                   anchoredIdx)
+    const InsertSizeParameters& /*insertSizeParameters*/,
+    const Read&            anchoredRead,
+    const Read&            rescuedRead,
+    const map::SeedChain&  anchoredSeedChain,
+    Alignment&             anchoredAlignment,
+    const AlignmentRescue& alignmentRescue,
+    map::SeedChain&        rescuedSeedChain,
+    Alignment&             rescuedAlignment,
+    const int              anchoredIdx)
 {
   const int rescuedIdx = !anchoredIdx;
 
-  if (alignmentRescue.scan(
-          rescuedRead, anchoredSeedChain, referenceDir_.getReferenceSequence(), rescuedSeedChain)) {
+  if (alignmentRescue.scan(rescuedRead, anchoredSeedChain, refSeq_, rescuedSeedChain)) {
     //          std::cerr << "rescued:" << rescuedSeedChain << std::endl;
     if (alignmentGenerator_.generateAlignment(
             alnMinScore_, rescuedRead, rescuedSeedChain, rescuedAlignment, rescuedIdx)) {
@@ -842,14 +854,13 @@ void Aligner::generateDummyAlignments(
   // TODO: implement
   for (const auto& seedChain : chainBuilder) {
     FlagType flags = !read.getPosition() ? Alignment::FIRST_IN_TEMPLATE : Alignment::LAST_IN_TEMPLATE;
-    flags |= seedChain.isReverseComplement() ? Alignment::REVERSE_COMPLEMENT : 0;
+    flags |= seedChain.isReverseComplement() ? Alignment::REVERSE_COMPLEMENT : Alignment::NONE;
     alignments.resize(alignments.size() + 1);
     auto& alignment = alignments.back();
     alignment.resetFlags(flags);
     // get the reference name from the ReferenceDir and the first diagonal
-    const size_t                      referenceOffset = seedChain.firstReferencePosition();
-    const reference::HashtableConfig& hashtableConfig = referenceDir_.getHashtableConfig();
-    const auto referenceCoordinates = hashtableConfig.convertToReferenceCoordinates(referenceOffset);
+    const size_t referenceOffset      = seedChain.firstReferencePosition();
+    const auto   referenceCoordinates = htConfig_.convertToReferenceCoordinates(referenceOffset);
     alignment.setReference(referenceCoordinates.first);
     const unsigned templateLength =
         seedChain.lastReferencePosition() - seedChain.firstReferencePosition() + 1;
@@ -998,75 +1009,6 @@ void Aligner::filter(Alignments& alignments)
     }
   }
 }
-
-#if 0
-
-static void checkDirectoryAndFile(const boost::filesystem::path &dir, const boost::filesystem::path &file)
-{
-  using namespace dragenos::common;
-  if (!exists(dir))
-    BOOST_THROW_EXCEPTION(IoException(ENOENT, std::string("ERROR: directory ") + dir.string() + " doesn't exist"));
-  const auto filePath = dir / file;
-  if (!exists(filePath))
-    BOOST_THROW_EXCEPTION(IoException(ENOENT, std::string("ERROR: file not found: ") + filePath.string()));
-  if (!is_regular_file(filePath))
-    BOOST_THROW_EXCEPTION(IoException(ENOENT, std::string("ERROR: not a file: ") + filePath.string()));
-}
-
-static uintmax_t getFileSize(const boost::filesystem::path &filePath)
-{
-  using namespace dragenos::common;
-  boost::system::error_code ec;
-  const auto fileSize = file_size(filePath, ec);
-  if (ec)
-    BOOST_THROW_EXCEPTION(IoException(ec.value(), std::string("ERROR: failed to get stats for file: ") + filePath.string()));
-  return fileSize;
-}
-
-std::vector<char> Aligner::getHashtableConfigData(const boost::filesystem::path referenceDir) const
-{
-  using namespace dragenos::common;
-  checkDirectoryAndFile(referenceDir, "hash_table.cfg.bin");
-  const auto hashtableConfigFile = referenceDir / "hash_table.cfg.bin";
-  const auto fileSize = getFileSize(hashtableConfigFile);
-  std::vector<char> data(fileSize);
-  std::ifstream is(hashtableConfigFile.string());
-  if ( (!is.read(data.data(), fileSize)) || (static_cast<long>(fileSize) != is.gcount()) )
-  {
-    boost::format message = boost::format("ERROR: failed to read %i bytes from binary hashtable config: %i bytes read from %s") % fileSize % is.gcount() % hashtableConfigFile.string();
-    BOOST_THROW_EXCEPTION(IoException(errno, message.str()));
-  }
-  return data;
-}
-
-uint64_t *Aligner::mmapHashtableData(const boost::filesystem::path referenceDir) const
-{
-  using namespace dragenos::common;
-  checkDirectoryAndFile(referenceDir, "hash_table.bin");
-  const auto hashtableDataFile = referenceDir / "hash_table.bin";
-  const auto fileSize = getFileSize(hashtableDataFile);
-  if (fileSize != hashtableConfig_.getHashtableBytes())
-  {
-    boost::format message = boost::format("ERROR: hashtable size different from size in config file: expected %i bytes: actual %i bytes") % hashtableConfig_.getHashtableBytes() % fileSize;
-    BOOST_THROW_EXCEPTION(IoException(errno, message.str()));
-  }
-  const auto hashtableFd = open(hashtableDataFile.c_str(), O_RDONLY, 0);
-  if (-1 == hashtableFd)
-  {
-    BOOST_THROW_EXCEPTION(IoException(errno, std::string("ERROR: failed to open hashtable data file ") + hashtableDataFile.string()));
-  }
-  const int prot = PROT_READ;
-  const int flags = MAP_PRIVATE | MAP_NORESERVE;
-  const int offset = 0;
-  auto table = static_cast<uint64_t*> (mmap(NULL, fileSize, prot, flags, hashtableFd, offset));
-  if (MAP_FAILED == table)
-  {
-     BOOST_THROW_EXCEPTION(IoException(errno, std::string("ERROR: failed to map hashtable data file ") + hashtableDataFile.string()));
-  }
-  return reinterpret_cast<uint64_t *>(table);
-}
-
-#endif
 
 }  // namespace align
 }  // namespace dragenos

@@ -117,13 +117,13 @@ int PairBuilder::computePairPenalty(
     m2a_penalty = aln_cfg_unpaired_pen_;
   } else {
     //      std::cerr << "c1:" << *c1 << " c2:" << *c2 <<std::endl;
-    const int inp_result_qry_end_gap =
-        a1->getCigar()
-            .countEndClips();  //readPair[0].getLength() - c1->lastReadBase() - 1;  //back().getSeed().getReadPosition() - 1;
+    //    const int inp_result_qry_end_gap =
+    //        a1->getCigar()
+    //            .countEndClips();  //readPair[0].getLength() - c1->lastReadBase() - 1;  //back().getSeed().getReadPosition() - 1;
     //      std::cerr << "inp_result_qry_end_gap:" << inp_result_qry_end_gap << std::endl;
-    const int result_rrec_qry_end_gap =
-        a2->getCigar()
-            .countEndClips();  //readPair[1].getLength() - c2->lastReadBase() - 1;  //back().getSeed().getReadPosition() - 1;
+    //    const int result_rrec_qry_end_gap =
+    //        a2->getCigar()
+    //            .countEndClips();  //readPair[1].getLength() - c2->lastReadBase() - 1;  //back().getSeed().getReadPosition() - 1;
     //      std::cerr << "result_rrec_qry_end_gap:" << result_rrec_qry_end_gap << std::endl;
 
     const int inp_eff_beg = a1->getUnclippedStartPosition();
@@ -182,8 +182,8 @@ int PairBuilder::computePairPenalty(
   //    std::cerr << "m2a_scale:" << m2a_scale << std::endl;
   const int m2a_prod = (m2a_scale * m2a_penalty) >> 10;
 
-  const int m2a_prod_frac_bits_c = 10;
-  const int m2a_prod_pen         = m2a_prod;  // >> m2a_prod_frac_bits_c;
+  //  const int m2a_prod_frac_bits_c = 10;
+  const int m2a_prod_pen = m2a_prod;  // >> m2a_prod_frac_bits_c;
 
   //      std::cerr << "m2a_prod_pen:" << m2a_prod_pen << std::endl;
   return m2a_prod_pen;
@@ -380,25 +380,45 @@ void PairBuilder::updateMapq(
   ScoreType sub_pair_score_v[2]  = {INVALID_SCORE, INVALID_SCORE};
   ScoreType secondBestSeScore[2] = {INVALID_SCORE, INVALID_SCORE};
 
-  AlignmentPairs::const_iterator secondBestPair[2] = {findSecondBestScore(
-                                                          averageReadLength,
-                                                          pairs,
-                                                          unpairedAlignments,
-                                                          best,
-                                                          0,
-                                                          sub_count[0],
-                                                          sub_pair_score_v[0],
-                                                          secondBestSeScore[0]),
+  //  AlignmentPairs::const_iterator secondBestPair[2] = {findSecondBestScore(
+  //                                                          averageReadLength,
+  //                                                          pairs,
+  //                                                          unpairedAlignments,
+  //                                                          best,
+  //                                                          0,
+  //                                                          sub_count[0],
+  //                                                          sub_pair_score_v[0],
+  //                                                          secondBestSeScore[0]),
+  //
+  //                                                      findSecondBestScore(
+  //                                                          averageReadLength,
+  //                                                          pairs,
+  //                                                          unpairedAlignments,
+  //                                                          best,
+  //                                                          1,
+  //                                                          sub_count[1],
+  //                                                          sub_pair_score_v[1],
+  //                                                          secondBestSeScore[1])};
 
-                                                      findSecondBestScore(
-                                                          averageReadLength,
-                                                          pairs,
-                                                          unpairedAlignments,
-                                                          best,
-                                                          1,
-                                                          sub_count[1],
-                                                          sub_pair_score_v[1],
-                                                          secondBestSeScore[1])};
+  findSecondBestScore(
+      averageReadLength,
+      pairs,
+      unpairedAlignments,
+      best,
+      0,
+      sub_count[0],
+      sub_pair_score_v[0],
+      secondBestSeScore[0]);
+
+  findSecondBestScore(
+      averageReadLength,
+      pairs,
+      unpairedAlignments,
+      best,
+      1,
+      sub_count[1],
+      sub_pair_score_v[1],
+      secondBestSeScore[1]);
 
   updateEndMapq(
       averageReadLength, best, 0, sub_count[0], sub_pair_score_v[0], secondBestSeScore, secondBestSeScore);

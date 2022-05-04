@@ -256,14 +256,14 @@ public:
   }
   unsigned getPrimarySeedBases() const { return header_.priSeedBases; }
   /// convert a position from the hashtable into reference coordinates (sequence id, offset)
-  std::pair<size_t, int64_t> convertToReferenceCoordinates(int64_t position) const;
+  std::pair<size_t, int64_t> convertToReferenceCoordinates(uint64_t position) const;
   /// get the range of positions for a given sequence
   static std::pair<uint64_t, uint64_t> getPositionRange(const Sequence& sequence)
   {
     const size_t trimmedLength = sequence.seqLen - sequence.begTrim - sequence.endTrim;
     return std::pair<uint64_t, uint64_t>(sequence.seqStart, sequence.seqStart + trimmedLength);
   }
-  bool beyondLastCfgSequence(int64_t position) const
+  bool beyondLastCfgSequence(uint64_t position) const
   {
     const auto& sequence = sequences_.back();
     return position > (sequence.seqStart - sequence.begTrim + sequence.seqLen);
@@ -284,7 +284,7 @@ private:
   const std::string              hashFname_;
   const std::string              altLiftover_;
   // extract the header from the raw data
-  const Header* const header(const char* const data, const size_t size) const
+  const Header* header(const char* const data, const size_t size) const
   {
     if (sizeof(Header) > size) {
       BOOST_THROW_EXCEPTION(
@@ -336,10 +336,10 @@ private:
     assert(ret.size() == sequences_.size());
     return ret;
   }
-  std::string refIdxFname(const char* const data, const size_t size) const
+  std::string refIdxFname(const char* const data, const size_t /*size*/) const
   {
     size_t bufOffset = sizeof(header_) + header_.numRefSeqs * sizeof(detail::hashtableSeq_t);
-    for (auto i = 0; i < header_.numRefSeqs; ++i) {
+    for (uint32_t i = 0; i < header_.numRefSeqs; ++i) {
       bufOffset += sequenceNames_[i].size() + 1;
     }
     const char* hostVersion = data + bufOffset;

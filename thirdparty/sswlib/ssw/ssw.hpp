@@ -1,12 +1,32 @@
-/*
- *  ssw.h
- *
- *  Created by Mengyao Zhao on 6/22/10.
- *  Copyright 2010 Boston College. All rights reserved.
- *	Version 0.1.4
- *	Last revision by Mengyao Zhao on 07/19/16.
- *
- */
+/**
+ ** DRAGEN Open Source Software
+ ** Copyright (c) 2019-2020 Illumina, Inc.
+ ** All rights reserved.
+ **
+ ** Based on SSW implementation
+ ** https://github.com/mengyao/Complete-Striped-Smith-Waterman-Library
+ ** Version 0.1.4
+ ** Last revision by Mengyao Zhao on 07/19/16 <zhangmp@bc.edu>
+ **
+ ** License: MIT
+ ** Copyright (c) 2012-2015 Boston College
+ ** Copyright (c) 2020-2021 Illumina
+ **
+ ** Permission is hereby granted, free of charge, to any person obtaining a copy of this
+ ** software and associated documentation files (the "Software"), to deal in the Software
+ ** without restriction, including without limitation the rights to use, copy, modify,
+ ** merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+ ** permit persons to whom the Software is furnished to do so, subject to the following
+ ** conditions:
+ ** The above copyright notice and this permission notice shall be included in all copies
+ ** or substantial portions of the Software.
+ ** THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ ** INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+ ** PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ ** HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+ ** OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ ** SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ **/
 
 #ifndef SSW_H
 #define SSW_H
@@ -14,21 +34,20 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
-#include <emmintrin.h>
+#include <immintrin.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif	// __cplusplus
 
 #define MAPSTR "MIDNSHP=X"
-#ifndef BAM_CIGAR_SHIFT
 #define BAM_CIGAR_SHIFT 4u
+
+/*!	@typedef	structure of the query profiles	*/
+struct _profile_sse2;
+typedef struct _profile_sse2 s_profile_sse2;
+
+#ifdef __AVX2__
+struct _profile_avx2;
+typedef struct _profile_avx2 s_profile_avx2;
 #endif
-
-
-/*!	@typedef	structure of the query profile	*/
-struct _profile;
-typedef struct _profile s_profile;
 
 /*!	@typedef	structure of the alignment result
 	@field	score1	the best alignment score
@@ -56,6 +75,11 @@ typedef struct {
 	int32_t cigarLen;
 } s_align;
 
+
+int32_t ssw_get_bias (
+    const int8_t* mat, const int32_t n);
+
+
 /*!	@function	Create the query profile using the query sequence.
 	@param	read	pointer to the query sequence; the query sequence needs to be numbers
 	@param	readLen	length of the query sequence
@@ -74,12 +98,26 @@ typedef struct {
 			 -2 -2 -2  2 //T
 			mat is the pointer to the array {2, -2, -2, -2, -2, 2, -2, -2, -2, -2, 2, -2, -2, -2, -2, 2}
 */
-s_profile* ssw_init (const int8_t* read, const int32_t readLen, const int8_t* mat, const int32_t n, const int8_t score_size);
+s_profile_sse2* ssw_init_sse2 (
+    const int8_t* read, const int32_t readLen,
+    const int8_t* mat, const int32_t n, const int32_t bias,
+    const int8_t score_size);
+
+#ifdef __AVX2__
+s_profile_avx2* ssw_init_avx2 (
+    const int8_t* read, const int32_t readLen,
+    const int8_t* mat, const int32_t n, const int32_t bias,
+    const int8_t score_size);
+#endif
 
 /*!	@function	Release the memory allocated by function ssw_init.
-	@param	p	pointer to the query profile structure
+	@param	p	pointer to the query profile structure, may be nullptr
 */
-void init_destroy (s_profile* p);
+void init_destroy_sse2 (s_profile_sse2* p);
+
+#ifdef __AVX2__
+void init_destroy_avx2 (s_profile_avx2* p);
+#endif
 
 // @function	ssw alignment.
 /*!	@function	Do Striped Smith-Waterman alignment.
@@ -114,15 +152,29 @@ void init_destroy (s_profile* p);
 			while bit 8 is not, the function will return cigar only when both criteria are fulfilled. All returned positions are
 			0-based coordinate.
 */
-s_align* ssw_align (const s_profile* prof,
-					const int8_t* ref,
-					int32_t refLen,
-					const uint8_t weight_gapO,
-					const uint8_t weight_gapE,
-					const uint8_t flag,
-					const uint16_t filters,
-					const int32_t filterd,
-					const int32_t maskLen);
+s_align* ssw_align_sse2 (
+    const s_profile_sse2* prof,
+    const int8_t* ref,
+    int32_t refLen,
+    const uint8_t weight_gapO,
+    const uint8_t weight_gapE,
+    const uint8_t flag,
+    const uint16_t filters,
+    const int32_t filterd,
+    const int32_t maskLen);
+
+#ifdef __AVX2__
+s_align* ssw_align_avx2 (
+    const s_profile_avx2* prof,
+    const int8_t* ref,
+    int32_t refLen,
+    const uint8_t weight_gapO,
+    const uint8_t weight_gapE,
+    const uint8_t flag,
+    const uint16_t filters,
+    const int32_t filterd,
+    const int32_t /*maskLen*/);
+#endif
 
 /*!	@function	Release the memory allocated by function ssw_align.
 	@param	a	pointer to the alignment result structure
@@ -181,8 +233,27 @@ static inline uint32_t cigar_int_to_len (uint32_t cigar_int)
 {
 	return cigar_int >> BAM_CIGAR_SHIFT;
 }
-#ifdef __cplusplus
-}
-#endif	// __cplusplus
+
+typedef struct {
+  uint32_t* seq;
+  int32_t length;
+} cigar;
+
+/*! @function   Compute banded SMW with a traceback and return CIGAR representation.
+*/
+cigar* banded_sw (
+    const int8_t* ref,
+    const int8_t* read,
+    int32_t refLen,
+    int32_t readLen,
+    int32_t score,
+    const uint32_t weight_gapO,  /* will be used as - */
+    const uint32_t weight_gapE,  /* will be used as - */
+    int32_t band_width,
+    const int8_t* mat, /* pointer to the weight matrix */
+    int32_t n,
+    int32_t read_begin,
+    int32_t unclippedReadLen
+);
 
 #endif	// SSW_H

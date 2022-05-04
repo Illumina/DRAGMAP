@@ -24,7 +24,7 @@
 #include <boost/iostreams/filtering_stream.hpp>
 
 #include "align/Aligner.hpp"
-#include "align/Sam.hpp"
+#include "align/SinglePicker.hpp"
 #include "bam/BamBlockReader.hpp"
 #include "bam/Tokenizer.hpp"
 #include "common/Debug.hpp"
@@ -36,6 +36,7 @@
 #include "mapping_stats.hpp"
 #include "options/DragenOsOptions.hpp"
 #include "reference/ReferenceDir.hpp"
+#include "sam/SamGenerator.hpp"
 
 #include "workflow/DualFastq2SamWorkflow.hpp"
 #include "workflow/Input2SamWorkflow.hpp"
@@ -182,12 +183,13 @@ fastq::FastqBlockReader makeBlockReader<fastq::FastqBlockReader>(
 
 template <typename ReadTransformer, typename Tokenizer, typename BlockReader>
 void parseSingleInput(
-    std::istream&                   is,
-    std::ostream&                   os,
-    const options::DragenOsOptions& options,
-    const reference::ReferenceDir7& referenceDir,
-    const reference::Hashtable&     hashtable,
-    std::ostream&                   mappingMetricsLogStream)
+    std::istream&                       is,
+    std::ostream&                       os,
+    const options::DragenOsOptions&     options,
+    const reference::ReferenceSequence& refSeq,
+    const reference::HashtableConfig&   htConfig,
+    const reference::Hashtable&         hashtable,
+    std::ostream&                       mappingMetricsLogStream)
 {
   std::chrono::system_clock::time_point timeStart = std::chrono::system_clock::now();
 
@@ -224,7 +226,7 @@ void parseSingleInput(
       options.alignerSecAlignsHard_,
       options.alignerMapqMinLen_);
 
-  const align::Sam sam(referenceDir.getHashtableConfig());
+  const sam::SamGenerator sam(htConfig);
 
   // idle threads needed to hold results that arrive out of order
   const int                             poolThreadCount = options.mapperNumThreads_ * 2;
@@ -258,7 +260,8 @@ void parseSingleInput(
                 options.alignerMapqMinLen_);
 
             align::Aligner aligner(
-                referenceDir,
+                refSeq,
+                htConfig,
                 hashtable,
                 options.mapOnly_,
                 options.swAll_,
@@ -288,7 +291,9 @@ void parseSingleInput(
             ReadGroupAlignmentCounts& mappingMetricsLocal = mappingMetricsVector[threadID];
             threadID++;
 
-            while (!reader.eof()) {
+            // common::CPU_THREADS().checkThreadFailed() is needed to prevent lucky threads
+            // from spending eternity trying to complete the processing of broken data
+            while (!common::CPU_THREADS().checkThreadFailed() && !reader.eof()) {
               const std::size_t n = reader.read(&inBuffer[0], BUFFER_SIZE);
 
               const int ourBlock = blockToRead;
@@ -312,7 +317,7 @@ void parseSingleInput(
               ++blockToGetInsertSizes;
               common::CPU_THREADS().notify_all();
 
-              while (options.mapperNumThreads_ == cpuThreads || blockToAlign != ourBlock) {
+              while (options.mapperNumThreads_ == int(cpuThreads) || blockToAlign != ourBlock) {
                 common::CPU_THREADS().waitForChange(lock);
               }
               ++cpuThreads;
@@ -401,7 +406,7 @@ void parseSingleInput(
           options.mapperNumThreads_);
 
   // aggregate and print mapping metrics
-  for (int ii = 0; ii < mappingMetricsVector.size(); ii++) {
+  for (std::size_t ii = 0; ii < mappingMetricsVector.size(); ii++) {
     mappingMetricsGlobal.add(mappingMetricsVector[ii]);
   }
 
@@ -424,11 +429,12 @@ bool isGzip(const std::string& fileName)
 }
 
 void parseSingleInput(
-    std::ostream&                   os,
-    const options::DragenOsOptions& options,
-    const reference::ReferenceDir7& referenceDir,
-    const reference::Hashtable&     hashtable,
-    std::ostream&                   mappingMetricsLogStream)
+    std::ostream&                       os,
+    const options::DragenOsOptions&     options,
+    const reference::ReferenceSequence& refSeq,
+    const reference::HashtableConfig&   htConfig,
+    const reference::Hashtable&         hashtable,
+    std::ostream&                       mappingMetricsLogStream)
 {
   std::cerr << "Running fastq workflow on " << options.mapperNumThreads_ << " threads. System supports "
             << std::thread::hardware_concurrency() << " threads." << std::endl;
@@ -444,10 +450,10 @@ void parseSingleInput(
   try {
     if (isBam(options.inputFile1_)) {
       parseSingleInput<io::BamToReadTransformer, bam::Tokenizer, bam::BamBlockReader>(
-          input, os, options, referenceDir, hashtable, mappingMetricsLogStream);
+          input, os, options, refSeq, htConfig, hashtable, mappingMetricsLogStream);
     } else {
       parseSingleInput<io::FastqToReadTransformer, fastq::Tokenizer, fastq::FastqBlockReader>(
-          input, os, options, referenceDir, hashtable, mappingMetricsLogStream);
+          input, os, options, refSeq, htConfig, hashtable, mappingMetricsLogStream);
     }
   } catch (boost::iostreams::gzip_error& e) {
     BOOST_THROW_EXCEPTION(std::runtime_error(
@@ -503,7 +509,7 @@ void input2Sam(const dragenos::options::DragenOsOptions& options)
     }
   }
   std::ostream& samFile = os.is_open() ? os : std::cout;
-  align::Sam::generateHeader(
+  sam::SamGenerator::generateHeader(
       samFile, referenceDir.getHashtableConfig(), options.getCommandLine(), options.rgid_, options.rgsm_);
 
   std::ofstream mappingMetricsLogStream;
@@ -534,12 +540,14 @@ void input2Sam(const dragenos::options::DragenOsOptions& options)
     parseSingleInput(
         samFile,
         options,
-        referenceDir,
+        referenceDir.getReferenceSequence(),
+        referenceDir.getHashtableConfig(),
         hashtable,
         mappingMetricsLogStream.is_open() ? mappingMetricsLogStream : std::cerr);
   } else {
-    DualFastq2SamWorkflow workflow(options, referenceDir, hashtable);
-    std::ofstream         insertSizeDistributionLogStream;
+    DualFastq2SamWorkflow workflow(
+        options, referenceDir.getReferenceSequence(), referenceDir.getHashtableConfig(), hashtable);
+    std::ofstream insertSizeDistributionLogStream;
 
     if (!options.outputDirectory_.empty()) {
       namespace bfs = boost::filesystem;

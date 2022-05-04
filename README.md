@@ -17,7 +17,7 @@ Once you have bioconda installed, you should be able to install Dragmap with  `c
 
 Compilation was tested on CentOS 7
 
-* C++11 compatible compiler (e.g gcc-c++ >= 4.8.5-36.el7_6.2)
+* C++17 compatible compiler (e.g gcc-c++ >= 7.1)
 * GNU make >= 3.82
 * Boost library :  boost169-devel >= 1.69.0-1.el7
 * For unit tests : googletest (>= v1.6)

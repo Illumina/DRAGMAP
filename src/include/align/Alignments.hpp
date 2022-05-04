@@ -17,8 +17,6 @@
 
 #include "align/Alignment.hpp"
 #include "align/SimilarityScores.hpp"
-#include "align/SmithWaterman.hpp"
-#include "align/VectorSmithWaterman.hpp"
 
 namespace dragenos {
 namespace align {

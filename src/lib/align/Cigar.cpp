@@ -280,7 +280,7 @@ const Cigar::OperationCode Cigar::OPERATION_CODES[256] = {INV,
 
 Cigar::OperationCode Cigar::getOperationCode(const char operationName)
 {
-  return OPERATION_CODES[operationName];
+  return OPERATION_CODES[int(operationName)];
 }
 
 /**

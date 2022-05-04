@@ -9,6 +9,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 //
 // RP: HA! HA! HA! That's what you get when you write code logging to cout all
 // over the place!
@@ -35,6 +36,7 @@ public:
   };
 
   void addInsertSizeRG(RGinsertSizeStats &other) {}
+  void addInsertSizeHistogram(const std::vector<uint64_t> &){}
 
   static RunStats *Instance();
   static RunStats *m_instance;

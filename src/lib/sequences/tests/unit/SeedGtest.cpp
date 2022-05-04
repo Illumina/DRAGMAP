@@ -38,12 +38,12 @@ TEST(SeedTest, getSeedOffsets)
     const uint8_t  forceLastN = 3;
     const auto     seedOffsets =
         dragenos::sequences::Seed::getSeedOffsets(readLength, seedLength, period, pattern, forceLastN);
-    ASSERT_EQ(5, seedOffsets.size());
-    ASSERT_EQ(0, seedOffsets[0]);
-    ASSERT_EQ(4, seedOffsets[1]);
-    ASSERT_EQ(6, seedOffsets[2]);
-    ASSERT_EQ(7, seedOffsets[3]);
-    ASSERT_EQ(8, seedOffsets[4]);
+    ASSERT_EQ(5u, seedOffsets.size());
+    ASSERT_EQ(0u, seedOffsets[0]);
+    ASSERT_EQ(4u, seedOffsets[1]);
+    ASSERT_EQ(6u, seedOffsets[2]);
+    ASSERT_EQ(7u, seedOffsets[3]);
+    ASSERT_EQ(8u, seedOffsets[4]);
   }
   {
     const size_t readLength = 151;
@@ -54,50 +54,50 @@ TEST(SeedTest, getSeedOffsets)
     const uint8_t  forceLastN = 3;
     const auto     seedOffsets =
         dragenos::sequences::Seed::getSeedOffsets(readLength, seedLength, period, pattern, forceLastN);
-    ASSERT_EQ(69, seedOffsets.size());
-    ASSERT_EQ(0, seedOffsets[0]);
-    ASSERT_EQ(2, seedOffsets[1]);
-    ASSERT_EQ(4, seedOffsets[2]);
-    ASSERT_EQ(130, seedOffsets[65]);
-    ASSERT_EQ(132, seedOffsets[66]);
-    ASSERT_EQ(133, seedOffsets[67]);
-    ASSERT_EQ(134, seedOffsets[68]);
+    ASSERT_EQ(69u, seedOffsets.size());
+    ASSERT_EQ(0u, seedOffsets[0]);
+    ASSERT_EQ(2u, seedOffsets[1]);
+    ASSERT_EQ(4u, seedOffsets[2]);
+    ASSERT_EQ(130u, seedOffsets[65]);
+    ASSERT_EQ(132u, seedOffsets[66]);
+    ASSERT_EQ(133u, seedOffsets[67]);
+    ASSERT_EQ(134u, seedOffsets[68]);
   }
 }
 
 TEST(SeedTest, generateReverseComplement)
 {
   using dragenos::sequences::Seed;
-  ASSERT_EQ(0x0, Seed::generateReverseComplement(0x0UL, 0));
-  ASSERT_EQ(0x0, Seed::generateReverseComplement(0x3UL, 1));
-  ASSERT_EQ(0x1, Seed::generateReverseComplement(0x2UL, 1));
-  ASSERT_EQ(0x2, Seed::generateReverseComplement(0x1UL, 1));
-  ASSERT_EQ(0x3, Seed::generateReverseComplement(0x0UL, 1));
+  ASSERT_EQ(0x0u, Seed::generateReverseComplement(0x0UL, 0));
+  ASSERT_EQ(0x0u, Seed::generateReverseComplement(0x3UL, 1));
+  ASSERT_EQ(0x1u, Seed::generateReverseComplement(0x2UL, 1));
+  ASSERT_EQ(0x2u, Seed::generateReverseComplement(0x1UL, 1));
+  ASSERT_EQ(0x3u, Seed::generateReverseComplement(0x0UL, 1));
   // 2 bases that are reverse complement of each other
-  ASSERT_EQ(0x3, Seed::generateReverseComplement(0x3UL, 2));  // TA
-  ASSERT_EQ(0x6, Seed::generateReverseComplement(0x6UL, 2));  // GC
-  ASSERT_EQ(0x9, Seed::generateReverseComplement(0x9UL, 2));  // CG
-  ASSERT_EQ(0xC, Seed::generateReverseComplement(0xCUL, 2));  // AT
+  ASSERT_EQ(0x3u, Seed::generateReverseComplement(0x3UL, 2));  // TA
+  ASSERT_EQ(0x6u, Seed::generateReverseComplement(0x6UL, 2));  // GC
+  ASSERT_EQ(0x9u, Seed::generateReverseComplement(0x9UL, 2));  // CG
+  ASSERT_EQ(0xCu, Seed::generateReverseComplement(0xCUL, 2));  // AT
   // 2 bases that are the same
-  ASSERT_EQ(0x0, Seed::generateReverseComplement(0xFUL, 2));  // AA
-  ASSERT_EQ(0x5, Seed::generateReverseComplement(0xAUL, 2));  // CC
-  ASSERT_EQ(0xA, Seed::generateReverseComplement(0x5UL, 2));  // GG
-  ASSERT_EQ(0xF, Seed::generateReverseComplement(0x0UL, 2));  // TT
+  ASSERT_EQ(0x0u, Seed::generateReverseComplement(0xFUL, 2));  // AA
+  ASSERT_EQ(0x5u, Seed::generateReverseComplement(0xAUL, 2));  // CC
+  ASSERT_EQ(0xAu, Seed::generateReverseComplement(0x5UL, 2));  // GG
+  ASSERT_EQ(0xFu, Seed::generateReverseComplement(0x0UL, 2));  // TT
   // other 2 base combinations
-  ASSERT_EQ(0x1, Seed::generateReverseComplement(0xBUL, 2));  // CA
-  ASSERT_EQ(0x2, Seed::generateReverseComplement(0x7UL, 2));  // GA
-  ASSERT_EQ(0xD, Seed::generateReverseComplement(0x8UL, 2));  // CT
-  ASSERT_EQ(0xE, Seed::generateReverseComplement(0x4UL, 2));  // GT
-  ASSERT_EQ(0x4, Seed::generateReverseComplement(0xEUL, 2));  // AC
-  ASSERT_EQ(0x7, Seed::generateReverseComplement(0x2UL, 2));  // TC
-  ASSERT_EQ(0x8, Seed::generateReverseComplement(0xDUL, 2));  // AG
-  ASSERT_EQ(0xB, Seed::generateReverseComplement(0x1UL, 2));  // TG
+  ASSERT_EQ(0x1u, Seed::generateReverseComplement(0xBUL, 2));  // CA
+  ASSERT_EQ(0x2u, Seed::generateReverseComplement(0x7UL, 2));  // GA
+  ASSERT_EQ(0xDu, Seed::generateReverseComplement(0x8UL, 2));  // CT
+  ASSERT_EQ(0xEu, Seed::generateReverseComplement(0x4UL, 2));  // GT
+  ASSERT_EQ(0x4u, Seed::generateReverseComplement(0xEUL, 2));  // AC
+  ASSERT_EQ(0x7u, Seed::generateReverseComplement(0x2UL, 2));  // TC
+  ASSERT_EQ(0x8u, Seed::generateReverseComplement(0xDUL, 2));  // AG
+  ASSERT_EQ(0xBu, Seed::generateReverseComplement(0x1UL, 2));  // TG
   // some random sequences
-  ASSERT_EQ(0x5F21, Seed::generateReverseComplement(0xB70AUL, 8));       // CAGATTCC -> GGAATCTG
-  ASSERT_EQ(0x35F21, Seed::generateReverseComplement(0x2DC28UL, 9));     // CAGATTCCT -> AGGAATCTG
-  ASSERT_EQ(0xE5F21, Seed::generateReverseComplement(0xB70A4UL, 10));    // CAGATTCCGT -> ACGGAATCTG
-  ASSERT_EQ(0x275F21, Seed::generateReverseComplement(0x2DC289UL, 11));  // CAGATTCCTCG -> CGAGGAATCTG
-  ASSERT_EQ(0xDE5F21, Seed::generateReverseComplement(0xB70A48UL, 12));  // CAGATTCCGTCT -> AGACGGAATCTG
+  ASSERT_EQ(0x5F21u, Seed::generateReverseComplement(0xB70AUL, 8));       // CAGATTCC -> GGAATCTG
+  ASSERT_EQ(0x35F21u, Seed::generateReverseComplement(0x2DC28UL, 9));     // CAGATTCCT -> AGGAATCTG
+  ASSERT_EQ(0xE5F21u, Seed::generateReverseComplement(0xB70A4UL, 10));    // CAGATTCCGT -> ACGGAATCTG
+  ASSERT_EQ(0x275F21u, Seed::generateReverseComplement(0x2DC289UL, 11));  // CAGATTCCTCG -> CGAGGAATCTG
+  ASSERT_EQ(0xDE5F21u, Seed::generateReverseComplement(0xB70A48UL, 12));  // CAGATTCCGTCT -> AGACGGAATCTG
 }
 
 TEST(SeedTest, Constructor)
@@ -132,10 +132,10 @@ TEST(SeedTest, getPrimaryData)
   using dragenos::sequences::Seed;
   Read read;
   // single base seeds
-  ASSERT_EQ(151, read.getLength());
+  ASSERT_EQ(151u, read.getLength());
   for (unsigned i = 0; read.getLength() > i; ++i) {
-    ASSERT_EQ(read.getBase2bpb(i), Seed(&read, i, 1).getPrimaryData(false)) << "i: " << i;
-    ASSERT_EQ((~read.getBase2bpb(i)) & 3, Seed(&read, i, 1).getPrimaryData(true)) << "i: " << i;
+    ASSERT_EQ((unsigned long)read.getBase2bpb(i), Seed(&read, i, 1).getPrimaryData(false)) << "i: " << i;
+    ASSERT_EQ((unsigned long)(~read.getBase2bpb(i)) & 3, Seed(&read, i, 1).getPrimaryData(true)) << "i: " << i;
   }
   ASSERT_THROW(
       Seed(&read, read.getLength(), 1).getPrimaryData(false), dragenos::common::PreConditionException);
@@ -172,7 +172,7 @@ TEST(SeedTest, getExtendedData)
   typedef Seed::Data Data;
   Read               read;
   // single base wings
-  ASSERT_EQ(151, read.getLength());
+  ASSERT_EQ(151u, read.getLength());
   for (unsigned i = 1; read.getLength() > i + 1; ++i) {
     const Data l = read.getBase2bpb(i - 1);
     const Data r = read.getBase2bpb(i + 1);

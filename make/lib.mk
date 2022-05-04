@@ -12,8 +12,8 @@ endif
 
 lib_sources := $(wildcard $(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/*.cpp)
 lib_c_sources := $(wildcard $(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/*.c)
-lib_objects := $(lib_sources:$(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/%.cpp=$(BUILD)/$(lib_dir)/%.o)
-lib_objects += $(lib_c_sources:$(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/%.c=$(BUILD)/$(lib_dir)/%.o)
+lib_objects := $(lib_sources:$(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/%.cpp=$(DRAGEN_OS_BUILD)/$(lib_dir)/%.o)
+lib_objects += $(lib_c_sources:$(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/%.c=$(DRAGEN_OS_BUILD)/$(lib_dir)/%.o)
 
 include $(wildcard $(lib_objects:%.o=%.d))
 
@@ -49,7 +49,7 @@ include $(wildcard $(lib_objects:%.o=%.d))
 ###
 
 unit_test_src_dir:=$(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/tests/unit
-unit_test_build_dir:=$(BUILD)/$(lib_dir)/tests/unit
+unit_test_build_dir:=$(DRAGEN_OS_BUILD)/$(lib_dir)/tests/unit
 
 unit_test_sources:=$(wildcard $(unit_test_src_dir)/*Gtest.cpp)
 unit_tests:=$(unit_test_sources:$(unit_test_src_dir)/%Gtest.cpp=%)
@@ -58,27 +58,24 @@ define UNIT_GTEST
 include $(wildcard $(unit_test_build_dir)/$(1)Wrapper.d $(unit_test_build_dir)/$(1)Gtest.d)
 .PRECIOUS: $(unit_test_build_dir)/$(1)Wrapper.cpp $(unit_test_build_dir)/$(1)Wrapper.d 
 $(unit_test_build_dir)/$(1)Wrapper.cpp: $(unit_test_build_dir)/.sentinel
-	$(ECHO) > $$@ ; \
+	$(SILENT_SE) $(ECHO) > $$@ ; \
 	[[ -e $(unit_test_src_dir)/$(1)Mocks.hpp ]] && $(ECHO) \#include \"$(1)Mocks.hpp\" >> $$@ ; \
 	[[ -e $(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/$(1).cpp ]] && $(ECHO) \#include \"$(1).cpp\" >> $$@ ; \
 	$(ECHO) >> $$@ # important for case without .cpp
 
 $(unit_test_build_dir)/$(1)Wrapper.o: $(unit_test_build_dir)/$(1)Wrapper.cpp $(unit_test_build_dir)/$(1)Wrapper.d
-	$$(CXX) -I$(unit_test_src_dir) -I$(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir) $$(DEPFLAGS) $$(CPPFLAGS) $$(CXXFLAGS) -c -o $$@ $$<
-	$$(POSTCOMPILE)
+	$(SILENT_SE) $$(CXX) -I$(unit_test_src_dir) -I$(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir) $$(DEPFLAGS) $$(CPPFLAGS) $$(CXXFLAGS) -c -o $$@ $$< && $$(POSTCOMPILE)
 
 $(unit_test_build_dir)/$(1)Gtest.o: $(unit_test_src_dir)/$(1)Gtest.cpp $(unit_test_build_dir)/$(1)Gtest.d $(unit_test_build_dir)/.sentinel
-	$(CXX) -I$(unit_test_src_dir) -I$(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir) $$(DEPFLAGS) $$(CPPFLAGS) $$(GTEST_CPPFLAGS) $$(CXXFLAGS) -c -o $$@ $$<
-	$$(POSTCOMPILE)
+	$(SILENT_SE) $(CXX) -I$(unit_test_src_dir) -I$(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir) $$(DEPFLAGS) $$(CPPFLAGS) $$(GTEST_CPPFLAGS) $$(CXXFLAGS) -c -o $$@ $$< && $$(POSTCOMPILE)
 
 $(unit_test_build_dir)/$(1)Gtest: $(unit_test_build_dir)/$(1)Gtest.o $(unit_test_build_dir)/$(1)Wrapper.o
-	$$(CXX) $$(CPPFLAGS) $$(GTEST_CPPFLAGS) $$(CXXFLAGS) -o $$@ $$^ $(GTEST_LDFLAGS) $$(LDFLAGS)
+	$(SILENT_SE) $$(CXX) $$(CPPFLAGS) $$(GTEST_CPPFLAGS) $$(CXXFLAGS) -o $$@ $$^ $(GTEST_LDFLAGS) $$(LDFLAGS)
 
 # For developers convenience, shows the output of failed tests
 $(unit_test_build_dir)/$(1)Gtest.passed: $(unit_test_build_dir)/$(1)Gtest
-	$(SILENT){ \
+	$(SILENT_SE) { \
 	TEST_COMMAND="$$< > $$<.failed && $$(MV) $$<.failed $$@" ; \
-	$(ECHO) "$$$${TEST_COMMAND}" ; \
 	$(EVAL) "$$$${TEST_COMMAND}"  ; \
 	} || { \
 	rc=$$$$? ; $(ECHO) ; $(ECHO) '***' ERROR '***' Failed unit test $$< "($(unit_test_src_dir)/$(1)Gtest.cpp)" ; \
@@ -86,7 +83,7 @@ $(unit_test_build_dir)/$(1)Gtest.passed: $(unit_test_build_dir)/$(1)Gtest
 	exit $$$$rc ; \
 	}
 
-$$(BUILD)/$(lib_dir).a: $(unit_test_build_dir)/$(1)Gtest.passed
+$$(DRAGEN_OS_BUILD)/libdragmap-$(lib_dir).a: $(unit_test_build_dir)/$(1)Gtest.passed
 
 endef # UNIT_GTEST
 
@@ -99,25 +96,23 @@ endif
 #
 #
 ###
-$(BUILD)/$(lib_dir).a: lib_objects:=$(lib_objects)
-$(BUILD)/$(lib_dir).a: $(lib_objects)
-	$(AR) crfs $@ $(lib_objects)
+$(DRAGEN_OS_BUILD)/libdragmap-$(lib_dir).a: lib_objects:=$(lib_objects)
+$(DRAGEN_OS_BUILD)/libdragmap-$(lib_dir).a: $(lib_objects)
+	$(SILENT) $(AR) crfs $@ $(lib_objects)
 
-#$(BUILD)/$(lib_dir)/%.o: $(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/%.cpp $(BUILD)/$(lib_dir)/%.d $(BUILD)/$(lib_dir)/.sentinel
+#$(DRAGEN_OS_BUILD)/$(lib_dir)/%.o: $(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/%.cpp $(DRAGEN_OS_BUILD)/$(lib_dir)/%.d $(DRAGEN_OS_BUILD)/$(lib_dir)/.sentinel
 #	$(CXX) $(DEPFLAGS) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 #	$(POSTCOMPILE)
 
 # Note: the dependency on $(libraries) is to force the order of compilation to be the same as the order of declaration of the libraries
-$(BUILD)/$(lib_dir)/%.o: lib_dir:=$(lib_dir)
-$(BUILD)/$(lib_dir)/%.o: $(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/%.cpp $(BUILD)/$(lib_dir)/%.d $(BUILD)/$(lib_dir)/.sentinel $(libraries)
-	$(CXX) $(DEPFLAGS) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
-	$(POSTCOMPILE)
+$(DRAGEN_OS_BUILD)/$(lib_dir)/%.o: lib_dir:=$(lib_dir)
+$(DRAGEN_OS_BUILD)/$(lib_dir)/%.o: $(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/%.cpp $(DRAGEN_OS_BUILD)/$(lib_dir)/.sentinel $(DRAGEN_OS_BUILD)/$(lib_dir)/%.d
+	$(SILENT) $(CXX) $(DEPFLAGS) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $< && $(POSTCOMPILE)
 
-$(BUILD)/$(lib_dir)/%.o: $(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/%.c $(BUILD)/$(lib_dir)/%.d $(BUILD)/$(lib_dir)/.sentinel $(libraries)
-	$(CC) $(DEPFLAGS) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
-	$(POSTCOMPILE)
+$(DRAGEN_OS_BUILD)/$(lib_dir)/%.o: $(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/%.c $(DRAGEN_OS_BUILD)/$(lib_dir)/.sentinel $(DRAGEN_OS_BUILD)/$(lib_dir)/%.d
+	$(SILENT) $(CC) $(DEPFLAGS) $(CPPFLAGS) $(CFLAGS) -c -o $@ $< && $(POSTCOMPILE)
 
-#$(BUILD)/$(lib_dir)/%.d: ;
+#$(DRAGEN_OS_BUILD)/$(lib_dir)/%.d: ;
 
 ###
 # build and run the integration tests for the library
@@ -146,8 +141,9 @@ $(BUILD)/$(lib_dir)/%.o: $(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/%.c $(BUILD)/$(lib_
 # no IOs (no file system, no network, rtc.)
 ###
 
+ifeq (1,${HAS_GTEST})
 integration_test_src_dir:=$(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir)/tests/integration
-integration_test_build_dir:=$(BUILD)/$(lib_dir)/tests/integration
+integration_test_build_dir:=$(DRAGEN_OS_BUILD)/$(lib_dir)/tests/integration
 
 integration_test_sources:=$(wildcard $(integration_test_src_dir)/*Gtest.cpp)
 integration_tests:=$(integration_test_sources:$(integration_test_src_dir)/%Gtest.cpp=%)
@@ -156,19 +152,17 @@ define INTEGRATION_GTEST
 include $(wildcard $(integration_test_build_dir)/$(1)Gtest.d)
 
 $(integration_test_build_dir)/$(1)Gtest.o: $(integration_test_src_dir)/$(1)Gtest.cpp $(integration_test_build_dir)/$(1)Gtest.d $(integration_test_build_dir)/.sentinel
-	$(CXX) -I$(integration_test_src_dir) -I$(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir) $$(DEPFLAGS) $$(CPPFLAGS) $$(GTEST_CPPFLAGS) $$(CXXFLAGS) -c -o $$@ $$<
-	$$(POSTCOMPILE)
+	$(SILENT_SE) $(CXX) -I$(integration_test_src_dir) -I$(DRAGEN_OS_SRC_DIR)/lib/$(lib_dir) $$(DEPFLAGS) $$(CPPFLAGS) $$(GTEST_CPPFLAGS) $$(CXXFLAGS) -c -o $$@ $$< && $$(POSTCOMPILE)
 
 $(integration_test_build_dir)/$(1)Gtest: libraries:= $(libraries)
 $(integration_test_build_dir)/$(1)Gtest: lib_objects:=$(lib_objects)
 $(integration_test_build_dir)/$(1)Gtest: $(integration_test_build_dir)/$(1)Gtest.o $(lib_objects) $(libraries)
-	$$(CXX) $$(CPPFLAGS) $$(GTEST_CPPFLAGS) $$(CXXFLAGS) -o $$@ $$^ $(GTEST_LDFLAGS) $$(GTEST_LDFLAGS) $$(LDFLAGS)
+	$(SILENT_SE) $$(CXX) $$(CPPFLAGS) $$(GTEST_CPPFLAGS) $$(CXXFLAGS) -o $$@ $$^ $(GTEST_LDFLAGS) $$(GTEST_LDFLAGS) $$(LDFLAGS)
 
 # For developers convenience, shows the output of failed tests
 $(integration_test_build_dir)/$(1)Gtest.passed: $(integration_test_build_dir)/$(1)Gtest
-	$(SILENT){ \
+	$(SILENT_SE) { \
 	TEST_COMMAND="$$< > $$<.failed && $$(MV) $$<.failed $$@" ; \
-	$(ECHO) "$$$${TEST_COMMAND}" ; \
 	$(EVAL) "$$$${TEST_COMMAND}"  ; \
 	} || { \
 	rc=$$$$? ; $(ECHO) ; $(ECHO) '***' ERROR '***' Failed integration test $$< "($(integration_test_src_dir)/$(1)Gtest.cpp)" ; \
@@ -176,17 +170,24 @@ $(integration_test_build_dir)/$(1)Gtest.passed: $(integration_test_build_dir)/$(
 	exit $$$$rc ; \
 	}
 
-$$(BUILD)/$(lib_dir).a: $(integration_test_build_dir)/$(1)Gtest.passed
+$$(DRAGEN_OS_BUILD)/libdragmap-$(lib_dir).a: $(integration_test_build_dir)/$(1)Gtest.passed
 
 endef # INTEGRATION_GTEST
 
-ifeq (1,${HAS_GTEST})
 $(foreach t, $(integration_tests), $(eval $(call INTEGRATION_GTEST,$(t))))
-endif
+endif #HAS_GTEST
 
 
 ###
 # must be built in reverse order for linking
 ###
-libraries := $(BUILD)/$(lib_dir).a $(libraries)
+libraries := $(DRAGEN_OS_BUILD)/libdragmap-$(lib_dir).a $(libraries)
+
+###
+# targets for external tools
+###
+library_targets := $(lib_dir)-lib $(library_targets)
+.PHONY: $(lib_dir)-lib
+$(lib_dir)-lib : $(DRAGEN_OS_BUILD)/libdragmap-$(lib_dir).a
+
 

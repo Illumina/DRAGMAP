@@ -24,16 +24,16 @@ namespace sequences {
 
 bool Seed::isValid(const Read& read, unsigned readPosition, unsigned primaryLength)
 {
-  static constexpr Read::Base N = 0xf;
+  //  static constexpr Read::Base N = 0xf;
   if (readPosition + primaryLength > read.getLength()) {
     return false;
   }
-//  for (unsigned i = 0; primaryLength > i; ++i) {
-//    const Read::Base base = read.getBase4bpb(readPosition + i);
-//    if ((0 == base) || (N == base)) {
-//      return false;
-//    }
-//  }
+  //  for (unsigned i = 0; primaryLength > i; ++i) {
+  //    const Read::Base base = read.getBase4bpb(readPosition + i);
+  //    if ((0 == base) || (N == base)) {
+  //      return false;
+  //    }
+  //  }
   return true;
 }
 

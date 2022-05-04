@@ -19,16 +19,23 @@
 
 include config.mk
 
-all: $(programs:%=$(BUILD)/%)
+all: $(programs:%=$(DRAGEN_OS_BUILD)/%)
 
 .PHONY: clean
 clean:
 	$(RMDIR) $(DRAGEN_OS_BUILD_DIR_BASE)
 
 .PHONY: help
-clean:
 help: $(DRAGEN_OS_ROOT_DIR)/README.md
 	cat $<
+	
+.PHONY: help-targets
+help-targets:
+	@$(ECHO) 'Default:   all'
+	@$(ECHO) 'Help:      help help-targets'
+	@$(ECHO) 'Cleanup:   clean'
+	@$(ECHO) 'Install:   install'
+	@$(ECHO) 'Libraries: $(library_targets)'
 
 ############################################################
 ##
@@ -50,7 +57,7 @@ POSTCOMPILE ?= mv -f $(@:%.o=%.Td) $(@:%.o=%.d)
 %/.sentinel:
 	@mkdir -p $* && touch $@
 
-include $(wildcard $(BUILD)/testRunner.d)
+include $(wildcard $(DRAGEN_OS_BUILD)/testRunner.d)
 
 # side effects:
 #  - builds 'libraries' variable required for linking programs, integration and system tests
@@ -68,7 +75,9 @@ programs_aux:=$(programs)
 include $(foreach program, $(programs), $(DRAGEN_OS_MAKE_DIR)/program.mk)
 
 # programs for system tests
+ifeq (1,${HAS_GTEST})
 include $(DRAGEN_OS_MAKE_DIR)/tests.mk
+endif
 
 include $(DRAGEN_OS_MAKE_DIR)/install.mk
 endif

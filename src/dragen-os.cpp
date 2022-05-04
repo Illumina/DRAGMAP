@@ -20,6 +20,8 @@
 
 int main(int argc, char* argv[])
 {
-  dragenos::common::run(dragenos::workflow::buildHashTable, argc, argv);
-  dragenos::common::run(dragenos::workflow::input2Sam, argc, argv);
+  dragenos::options::DragenOsOptions opts;
+  dragenos::common::parse_options(argc, argv, opts);
+  dragenos::common::run(dragenos::workflow::buildHashTable, opts);
+  dragenos::common::run(dragenos::workflow::input2Sam, opts);
 }

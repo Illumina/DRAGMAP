@@ -13,9 +13,9 @@ TEST(Wavefront, Constructor)
   for (const auto v : w0.getLastScores()) {
     ASSERT_EQ(v, 0);
   }
-  ASSERT_EQ(w0.next(), 0);
-  ASSERT_EQ(w0.last(), 2);
-  ASSERT_EQ(w0.penultimate(), 1);
+  ASSERT_EQ(w0.next(), 0u);
+  ASSERT_EQ(w0.last(), 2u);
+  ASSERT_EQ(w0.penultimate(), 1u);
   const auto uniformAntidiagonal = [](short init) {
     Antidiagonal tmp;
     for (auto& v : tmp.data) v = init;
@@ -32,13 +32,13 @@ TEST(Wavefront, Constructor)
   const History      h4{a2, a3, a4};
   const History      h5{a3, a4, a5};
   const Wavefront    w1(h2, h3, h4, 1, Wavefront::right);
-  ASSERT_EQ(w1.next(), 1);
-  ASSERT_EQ(w1.last(), 0);
-  ASSERT_EQ(w1.penultimate(), 2);
+  ASSERT_EQ(w1.next(), 1u);
+  ASSERT_EQ(w1.last(), 0u);
+  ASSERT_EQ(w1.penultimate(), 2u);
   const Wavefront w2(h3, h4, h5, 2, Wavefront::down);
-  ASSERT_EQ(w2.next(), 2);
-  ASSERT_EQ(w2.last(), 1);
-  ASSERT_EQ(w2.penultimate(), 0);
+  ASSERT_EQ(w2.next(), 2u);
+  ASSERT_EQ(w2.last(), 1u);
+  ASSERT_EQ(w2.penultimate(), 0u);
 }
 
 TEST(Wavefront, moveRightE)

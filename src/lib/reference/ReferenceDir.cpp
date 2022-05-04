@@ -52,7 +52,7 @@ typename ReferenceDir7::UcharPtr ReferenceDir7::ReadFileIntoBuffer(
   size = file.tellg();
   file.seekg(0, file.beg);
 
-  UcharPtr bufPtr(new uint8_t[size], [this](uint8_t* p) -> void { delete (p); });
+  UcharPtr bufPtr(new uint8_t[size], [this](uint8_t* p) -> void { delete [](p); });
   file.read(reinterpret_cast<char*>(bufPtr.get()), size);
   if (!file) {
     //    THROW(DragenException, "Could not load reference - could not read ", path);
@@ -63,19 +63,17 @@ typename ReferenceDir7::UcharPtr ReferenceDir7::ReadFileIntoBuffer(
 }
 
 ReferenceDir7::ReferenceDir7(const boost::filesystem::path& path, bool mmap, bool load)
-  : mmap_(mmap),
-    load_(load),
-    path_(path),
+  : path_(path),
     hashtableConfigData_(getHashtableConfigData()),
     hashtableConfig_(hashtableConfigData_.data(), hashtableConfigData_.size())
 {
-  if (mmap_) {
+  if (mmap) {
     hashtableData_   = mmapData<uint64_t>(hashtableBin, hashtableConfig_.getHashtableBytes());
     extendTableData_ = (exists(path_ / extendTableBin))
                            ? mmapData<uint64_t>(extendTableBin, hashtableConfig_.getExtendTableBytes())
                            : nullptr;
     referenceData_ = mmapData<unsigned char>(referenceBin, hashtableConfig_.getReferenceSequenceLength() / 2);
-  } else if (load_) {
+  } else if (load) {
     hashtableData_   = readData<uint64_t>(hashtableBin, hashtableConfig_.getHashtableBytes());
     extendTableData_ = (exists(path_ / extendTableBin))
                            ? readData<uint64_t>(extendTableBin, hashtableConfig_.getExtendTableBytes())
@@ -112,6 +110,10 @@ ReferenceDir7::ReferenceDir7(const boost::filesystem::path& path, bool mmap, boo
         &extendTableSize,
         nullptr,
         nullptr);
+
+    if (err) {
+      BOOST_THROW_EXCEPTION(std::logic_error(err));
+    }
 
     // restore stdout
     dup2(stdoutori, 1);

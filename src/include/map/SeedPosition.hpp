@@ -31,7 +31,7 @@ public:
   }
   ReferencePosition      getReferencePosition() const { return position_; }
   const sequences::Seed& getSeed() const { return seed_; }
-  const unsigned         getHalfExtension() const { return halfExtension_; }
+  unsigned         getHalfExtension() const { return halfExtension_; }
   /// Projected reference position of the leftmost base of the read
   ReferencePosition getFirstProjection(bool reverseComplement) const;
   /// Projected reference position of the rightmost base of the read

@@ -15,22 +15,23 @@
 #include "align/VectorSmithWaterman.hpp"
 #include <sstream>
 #include <vector>
-#include "ssw/ssw.h"
+#include "ssw/ssw.hpp"
 
 namespace dragenos {
 namespace align {
 
 void VectorSmithWaterman::destroyReadContext(int readIdx)
 {
-  if (profile_[readIdx] != NULL) {
-    init_destroy(profile_[readIdx]);
-    profile_[readIdx] = NULL;
-  }
+#ifdef __AVX2__
+  init_destroy_avx2(profile_[readIdx]);
+  init_destroy_avx2(profileRev_[readIdx]);
+#else
+  init_destroy_sse2(profile_[readIdx]);
+  init_destroy_sse2(profileRev_[readIdx]);
+#endif
 
-  if (profileRev_[readIdx] != NULL) {
-    init_destroy(profileRev_[readIdx]);
-    profileRev_[readIdx] = NULL;
-  }
+  profile_[readIdx]    = NULL;
+  profileRev_[readIdx] = NULL;
 }
 
 void VectorSmithWaterman::initReadContext(
@@ -48,18 +49,29 @@ void VectorSmithWaterman::initReadContext(
 
   destroyReadContext(readIdx);
 
-  const int8_t* queryBeginInt = (int8_t*)query_[readIdx].data();
-  profile_[readIdx] = ssw_init(queryBeginInt, querySize_[readIdx], sswScoringMat_, sswAlphabetSize_, 2);
-
+  const int8_t* queryBeginInt    = (int8_t*)query_[readIdx].data();
   const int8_t* queryRevBeginInt = (int8_t*)queryRev_[readIdx].data();
-  profileRev_[readIdx] = ssw_init(queryRevBeginInt, querySize_[readIdx], sswScoringMat_, sswAlphabetSize_, 2);
+
+#ifdef __AVX2__
+  // AVX2 variant initializes profile only for 8-bit scoring (last argument 0),
+  // 16-bit scoring is initialized only when needed
+  profile_[readIdx] =
+      ssw_init_avx2(queryBeginInt, querySize_[readIdx], sswScoringMat_, sswAlphabetSize_, sswBias_, 0);
+  profileRev_[readIdx] =
+      ssw_init_avx2(queryRevBeginInt, querySize_[readIdx], sswScoringMat_, sswAlphabetSize_, sswBias_, 0);
+#else
+  profile_[readIdx] =
+      ssw_init_sse2(queryBeginInt, querySize_[readIdx], sswScoringMat_, sswAlphabetSize_, sswBias_, 2);
+  profileRev_[readIdx] =
+      ssw_init_sse2(queryRevBeginInt, querySize_[readIdx], sswScoringMat_, sswAlphabetSize_, sswBias_, 2);
+#endif
 }
 
 // returns alignment score
 // returns operations list in cigar
 uint16_t VectorSmithWaterman::align(
-    const unsigned char* queryBegin,
-    const unsigned char* queryEnd,
+    const unsigned char* /*queryBegin*/,
+    const unsigned char* /*queryEnd*/,
     const unsigned char* databaseBegin,
     const unsigned char* databaseEnd,
     bool                 reverseQuery,
@@ -74,7 +86,11 @@ uint16_t VectorSmithWaterman::align(
   // const int querySize = std::distance(queryBeginInt, queryEndInt);
   const int dbSize = std::distance(databaseBeginInt, databaseEndInt);
 
-  s_profile* profile;
+#ifdef __AVX2__
+  s_profile_avx2* profile;
+#else
+  s_profile_sse2* profile;
+#endif
 
   // use the already built profile
   int querySize = querySize_[readIdx];
@@ -89,13 +105,19 @@ uint16_t VectorSmithWaterman::align(
   uint8_t flag = 0;
   //flag |= 0x08;  // report ref position
   //flag |= 0x0F;  // report cigar
-  flag             = 1;  // always compute cigar
+  // 1 - always compute cigar; 1 << 5 - get just the start and end positions
+  flag             = 1;
   uint16_t filters = 0;
   int32_t  filterd = 0;
   int32_t  maskLen = querySize / 2;
 
   result =
-      ssw_align(profile, databaseBeginInt, dbSize, gapInit_, gapExtend_, flag, filters, filterd, maskLen);
+#ifdef __AVX2__
+      ssw_align_avx2(
+#else
+      ssw_align_sse2(
+#endif
+          profile, databaseBeginInt, dbSize, gapInit_, gapExtend_, flag, filters, filterd, maskLen);
 
   this->getCigarOperations(*result, querySize, cigar);
 
@@ -158,7 +180,7 @@ std::string VectorSmithWaterman::convert_cigar(const s_align& s_al, const int& q
   if (s_al.cigarLen > 0) {
     std::ostringstream cigar_string;
     if (s_al.read_begin1 > 0) {
-      uint32_t cigar = to_cigar_int(s_al.read_begin1, 'S');
+      //      uint32_t cigar = to_cigar_int(s_al.read_begin1, 'S');
       cigar_string << s_al.read_begin1 << 'S';
     }
 
@@ -168,7 +190,7 @@ std::string VectorSmithWaterman::convert_cigar(const s_align& s_al, const int& q
 
     int end = query_len - s_al.read_end1 - 1;
     if (end > 0) {
-      uint32_t cigar = to_cigar_int(end, 'S');
+      //      uint32_t cigar = to_cigar_int(end, 'S');
       cigar_string << end << 'S';
     }
 
