@@ -16,6 +16,7 @@
 #define ALIGN_ALIGNMENT_GENERATOR_HPP
 
 #include "align/Alignments.hpp"
+#include "align/SmithWaterman.hpp"
 #include "align/VectorSmithWaterman.hpp"
 #include "map/ChainBuilder.hpp"
 #include "reference/ReferenceDir.hpp"
@@ -29,11 +30,13 @@ public:
   typedef sequences::Read   Read;
   typedef map::ChainBuilder ChainBuilder;
   AlignmentGenerator(
-      const reference::ReferenceDir& referenceDir,
-      SmithWaterman&                 smithWaterman,
-      VectorSmithWaterman&           vectorSmithWaterman,
-      bool                           vectorizedSW)
-    : referenceDir_(referenceDir),
+      const reference::ReferenceSequence& refSeq,
+      const reference::HashtableConfig&   htConfig,
+      SmithWaterman&                      smithWaterman,
+      VectorSmithWaterman&                vectorSmithWaterman,
+      bool                                vectorizedSW)
+    : refSeq_(refSeq),
+      htConfig_(htConfig),
       smithWaterman_(smithWaterman),
       vectorSmithWaterman_(vectorSmithWaterman),
       vectorizedSW_(vectorizedSW)
@@ -50,10 +53,11 @@ public:
       const int       readIdx);
 
 private:
-  const reference::ReferenceDir& referenceDir_;
-  SmithWaterman&                 smithWaterman_;
-  VectorSmithWaterman&           vectorSmithWaterman_;
-  const bool                     vectorizedSW_;
+  const reference::ReferenceSequence& refSeq_;
+  const reference::HashtableConfig&   htConfig_;
+  SmithWaterman&                      smithWaterman_;
+  VectorSmithWaterman&                vectorSmithWaterman_;
+  const bool                          vectorizedSW_;
   void updateFetchChain(const Read& read, map::SeedChain& seedChain, Alignment& alignment);
 };  // class AlignmentGenerator
 

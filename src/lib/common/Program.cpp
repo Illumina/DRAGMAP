@@ -23,14 +23,11 @@ namespace dragenos {
 namespace common {
 
 #define HELP_STR "help"
-#define HELP_MD_STR "help-md"
 #define HELP_DEFAULTS_STR "help-defaults"
 
 Options::Options()
 {
   namedOptions_.add_options()(HELP_STR ",h", "produce help message and exit");
-  namedOptions_.add_options()(
-      HELP_MD_STR, "produce help message pre-formatted as a markdown file section and exit");
   namedOptions_.add_options()(
       HELP_DEFAULTS_STR, "produce tab-delimited list of command line options and their default values");
   namedOptions_.add_options()("version,V", bpo::bool_switch(&version_), "print program version information");
@@ -76,7 +73,7 @@ Options::Action Options::parse(int argc, const char* const argv[])
     }
 
     bpo::notify(vm_);
-    if (vm_.count(HELP_STR) || vm_.count(HELP_MD_STR) || vm_.count(HELP_DEFAULTS_STR)) {
+    if (vm_.count(HELP_STR) || vm_.count(HELP_DEFAULTS_STR)) {
       return HELP;
     } else if (version_) {
       return VERSION;
@@ -134,44 +131,21 @@ static unsigned short getTerminalColumns()
   return ws_col;
 }
 
-std::string Options::help(const OptionDescriptionPtrs& sortedOptions, const bool markdown) const
+std::string Options::help(const OptionDescriptionPtrs& sortedOptions) const
 {
-  std::ostringstream os;
-  if (!markdown) {
-    const unsigned           effectiveLineLength = getTerminalColumns();
-    bpo::options_description printedDescriptions(
-        "Command line options",
-        effectiveLineLength < 50 ? bpo::options_description::m_default_line_length : effectiveLineLength,
-        effectiveLineLength < 50 ? bpo::options_description::m_default_line_length / 2
-                                 : effectiveLineLength - 50);
+  std::ostringstream       os;
+  const unsigned           effectiveLineLength = getTerminalColumns();
+  bpo::options_description printedDescriptions(
+      "Command line options",
+      effectiveLineLength < 50 ? bpo::options_description::m_default_line_length : effectiveLineLength,
+      effectiveLineLength < 50 ? bpo::options_description::m_default_line_length / 2
+                               : effectiveLineLength - 50);
 
-    for (const OptionDescriptionPtr& odPtr : sortedOptions) {
-      printedDescriptions.add(odPtr);
-    }
-
-    os << this->usagePrefix() << "\n\n" << printedDescriptions << std::endl;
-  } else {
-    // markdown lines are prepended by two spaces
-    const unsigned           effectiveLineLength = MARKDOWN_LINE_LENGTH - 2;
-    bpo::options_description printedDescriptions(effectiveLineLength, effectiveLineLength - 50);
-
-    for (const OptionDescriptionPtr& odPtr : sortedOptions) {
-      printedDescriptions.add(odPtr);
-    }
-
-    std::vector<std::string> lines;
-    os << printedDescriptions << std::endl;
-    std::string str = os.str();
-    boost::algorithm::split(lines, str, boost::algorithm::is_any_of("\n\r"));
-    os.str("");
-
-    os << "**Usage**\n\n" << this->usagePrefix() << "\n\n**Options**\n" << std::endl;
-    BOOST_FOREACH (const std::string& line, lines) {
-      // pre-pend two spaces to the two spaces that boost adds so that we get 4 spaces for markdown to
-      // recognise pre-formatted text.
-      os << "  " << line << std::endl;
-    }
+  for (const OptionDescriptionPtr& odPtr : sortedOptions) {
+    printedDescriptions.add(odPtr);
   }
+
+  os << this->usagePrefix() << "\n\n" << printedDescriptions << std::endl;
   return os.str();
 }
 
@@ -184,7 +158,7 @@ std::string Options::usage() const
     return helpDefaults(sortedOptions);
   }
 
-  return help(sortedOptions, vm_.count(HELP_MD_STR));
+  return help(sortedOptions);
 }
 
 }  // namespace common

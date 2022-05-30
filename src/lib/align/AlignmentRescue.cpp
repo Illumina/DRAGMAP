@@ -41,12 +41,13 @@ bool AlignmentRescue::triggeredBy(const SeedChain& anchoredChain, const bool any
  */
 }
 
+// clears referenceBases before data is added
 uint32_t AlignmentRescue::getReferenceInterval(
     const SeedChain&                    anchoredChain,
     const int                           rescuedReadLength,
     const reference::ReferenceSequence& reference,
     std::vector<unsigned char>&         referenceBases,
-    const bool                          second) const
+    const bool /*second*/) const
 {
   typedef map::SeedPosition::ReferencePosition ReferencePosition;
   const bool                                   rescue_end = anchoredChain.isReverseComplement();
@@ -81,11 +82,13 @@ uint32_t AlignmentRescue::getReferenceInterval(
   //  const int ref_length = ((((last_ref_pos + 1 - first_ref_pos) + 3) >> 2) << 2);
   //  const int ref_length = (last_ref_pos + 1 - first_ref_pos);
   assert(first_ref_pos <= last_ref_pos);
+  referenceBases.clear();
+  referenceBases.reserve(ref_length + 1);
   if (isReversedRescue(anchoredChain)) {
-    reference.getRcBases(last_ref_pos - ref_length + 1, last_ref_pos + 1, std::back_inserter(referenceBases));
+    reference.getRcBases(last_ref_pos - ref_length + 1, last_ref_pos + 1, referenceBases);
     std::reverse(referenceBases.begin(), referenceBases.end());
   } else {
-    reference.getBases(first_ref_pos, first_ref_pos + ref_length, std::back_inserter(referenceBases));
+    reference.getBases(first_ref_pos, first_ref_pos + ref_length, referenceBases);
   }
 
   // std::cerr << "after=" << after << ", anchorPosition=" << anchorPosition<< ", length=" << length << ", pe_min_insert_=" << pe_min_insert_ << ", rescuedReadLength=" << rescuedReadLength << ", minPosition= " << minPosition << ", referenceBases.size()=" << referenceBases.size() << ", isReversedRescue(anchoredChain): " << isReversedRescue(anchoredChain) << std::endl;
@@ -137,7 +140,6 @@ bool AlignmentRescue::scan(
   if (((pe_orientation_ == Orientation::pe_orient_fr_c) ||
        (pe_orientation_ == Orientation::pe_orient_rf_c))) {
     // get the rescue reference interval
-    referenceBases.clear();
     const auto rescueIntervalStart =
         getReferenceInterval(anchoredChain, rescuedRead.getLength(), reference, referenceBases);
 
@@ -358,7 +360,9 @@ std::array<AlignmentRescue::RescueKmer, 2> AlignmentRescue::getRescueKmers(
 }
 
 bool AlignmentRescue::findRescueChain(
-    const Read& rescuedRead, const std::vector<unsigned char>& referenceBases, SeedChain& rescuedChain) const
+    const Read& /*rescuedRead*/,
+    const std::vector<unsigned char>& /*referenceBases*/,
+    SeedChain& /*rescuedChain*/) const
 {
   return false;
 }

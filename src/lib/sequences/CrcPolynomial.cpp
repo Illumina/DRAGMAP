@@ -24,7 +24,7 @@ namespace sequences {
 
 std::array<uint8_t, 16> CrcPolynomial::generateData(unsigned bitCount, const uint8_t* data)
 {
-  std::array<uint8_t, 16> result;
+  std::array<uint8_t, 16> result    = {};
   const unsigned          byteCount = (bitCount + 7) / 8;
   if (bitCount > result.size() * 8) {
     BOOST_THROW_EXCEPTION(common::InvalidParameterException(std::string("Suport at most 128 bits")));

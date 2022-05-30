@@ -13,37 +13,10 @@
 #ifndef __OUTPUT_DBAM_HEADER_HPP__
 #define __OUTPUT_DBAM_HEADER_HPP__
 
+#include "api/BamConstants.h"
+
 #include "align/Alignment.hpp"
 #include "align/Cigar.hpp"
-
-namespace BamTools {
-namespace Constants {
-
-const uint8_t BAM_SIZEOF_INT = 4;
-
-// header magic number
-const char *const BAM_HEADER_MAGIC = "BAM\1";
-const uint8_t BAM_HEADER_MAGIC_LENGTH = 4;
-
-// BAM alignment core size
-const uint8_t BAM_CORE_SIZE = 32;
-const uint8_t BAM_CORE_BUFFER_SIZE = 8;
-
-// BAM alignment flags
-const int BAM_ALIGNMENT_PAIRED = 0x0001;
-const int BAM_ALIGNMENT_PROPER_PAIR = 0x0002;
-const int BAM_ALIGNMENT_UNMAPPED = 0x0004;
-const int BAM_ALIGNMENT_MATE_UNMAPPED = 0x0008;
-const int BAM_ALIGNMENT_REVERSE_STRAND = 0x0010;
-const int BAM_ALIGNMENT_MATE_REVERSE_STRAND = 0x0020;
-const int BAM_ALIGNMENT_READ_1 = 0x0040;
-const int BAM_ALIGNMENT_READ_2 = 0x0080;
-const int BAM_ALIGNMENT_SECONDARY = 0x0100;
-const int BAM_ALIGNMENT_QC_FAILED = 0x0200;
-const int BAM_ALIGNMENT_DUPLICATE = 0x0400;
-
-} // namespace Constants
-} // namespace BamTools
 
 class DbamHeader {
   const dragenos::align::SerializedAlignment &alignment_;

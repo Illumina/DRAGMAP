@@ -22,9 +22,10 @@ namespace dragenos {
 namespace workflow {
 
 class DualFastq2SamWorkflow {
-  const options::DragenOsOptions& options_;
-  const reference::ReferenceDir7& referenceDir_;
-  const reference::Hashtable&     hashtable_;
+  const options::DragenOsOptions&     options_;
+  const reference::ReferenceSequence& refSeq_;
+  const reference::HashtableConfig&   htConfig_;
+  const reference::Hashtable&         hashtable_;
   // IMPORTANT: this has to divide INIT_INTERVAL_SIZE without remainder. Else the whole insert
   // size stats detection will hang because it depends on processing alignment results exactly
   // after sending INIT_INTERVAL_SIZE into the aligner.
@@ -42,10 +43,11 @@ class DualFastq2SamWorkflow {
 
 public:
   DualFastq2SamWorkflow(
-      const options::DragenOsOptions& options,
-      const reference::ReferenceDir7& referenceDir,
-      const reference::Hashtable&     hashtable)
-    : options_(options), referenceDir_(referenceDir), hashtable_(hashtable)
+      const options::DragenOsOptions&     options,
+      const reference::ReferenceSequence& refSeq,
+      const reference::HashtableConfig&   htConfig,
+      const reference::Hashtable&         hashtable)
+    : options_(options), refSeq_(refSeq), htConfig_(htConfig), hashtable_(hashtable)
   {
   }
 
@@ -55,6 +57,19 @@ public:
 private:
   align::InsertSizeParameters requestInsertSizeInfo(
       align::InsertSizeDistribution& insertSizeDistribution, std::istream& inputR1, std::istream& inputR2);
+
+  void alignDualFastqBlock(
+      common::ThreadPool::lock_type&         lock,
+      std::size_t&                           cpuThreads,
+      std::size_t&                           threadID,
+      std::vector<ReadGroupAlignmentCounts>& mappingMetricsVector,
+      align::InsertSizeDistribution&         insertSizeDistribution,
+      fastq::FastqNRecordReader&             r1Reader,
+      fastq::FastqNRecordReader&             r2Reader,
+      std::ostream&                          os,
+      const align::SinglePicker&             singlePicker,
+      const align::SimilarityScores&         similarity,
+      const sam::SamGenerator&               sam);
 
   template <typename StoreOp>
   void alignDualFastq(

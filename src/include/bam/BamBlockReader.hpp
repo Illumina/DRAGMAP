@@ -44,7 +44,8 @@ class BamBlockReader {
 public:
   typedef std::istream::char_type char_type;
 
-  BamBlockReader(std::istream& stream, const char inputQnameSuffixDelim) : stream_(stream), inputQnameSuffixDelim_ (inputQnameSuffixDelim)
+  BamBlockReader(std::istream& stream, const char inputQnameSuffixDelim)
+    : stream_(stream), inputQnameSuffixDelim_(inputQnameSuffixDelim)
   {
     skipToFirstRecord();
   }
@@ -94,34 +95,67 @@ private:
   /**
    * \brief find first incomplete record
    * \return number of bytes in s ending at the end of last complete record
+   * \postcondition returned number of bytes does not break pair apart
    */
   std::size_t findFirstIncomplete(const char_type* s, std::size_t n) const
   {
-    const char_type*  prevPrev = 0;
-    const char_type*  prev     = 0;
+    const char_type*  prevGood        = 0;
+    const char_type*  lastGood        = 0;
+    const char_type*  lastCompleteAny = 0;
     BamRecordAccessor bra(s);
     while (sizeof(BamRecordHeader) < n && bra.size() <= n) {
       n -= bra.size();
       if (!bra.secondary() && !bra.suplementary()) {
-        prevPrev = prev;
-        prev     = bra.current();
+        prevGood = lastGood;
+        lastGood = bra.current();
       }
+      lastCompleteAny = bra.current();
       //      std::cerr << bra << std::endl;
       bra.envelop(bra.next());
     }
 
-    if (!prev) {
-      BOOST_THROW_EXCEPTION(BamException("Insufficient buffer to read a single bam record"));
+    if (!lastGood) {
+      // could not find a single useful record in the block. Probably position-sorted bam file.
+      // just make sure we're making some progress and return the end of last fully contained record
+      if (!lastCompleteAny) {
+        BOOST_THROW_EXCEPTION(BamException("Insufficient buffer to read a single bam record"));
+      }
+      return std::distance(s, (const char*)lastCompleteAny);
     }
 
-    BamRecordAccessor prevBra(prev);
-    if (prevBra.paired()) {
-      if (!prevPrev || BamRecordAccessor(prevPrev).getName(inputQnameSuffixDelim_) ==
-                           prevBra.getName(inputQnameSuffixDelim_)) {
-        return std::distance(s, (const char*)prevBra.next());
+    BamRecordAccessor r2(lastGood);
+    if (r2.paired()) {
+      // let lastGood is in only if it is read 2 of pair and read 1 is already in
+      // assume prevGood is pointing at r1
+      if (!prevGood) {
+        if (!r2.first()) {
+          BOOST_THROW_EXCEPTION(BamException(
+              std::string("Incorrect order of records in bam detected at record name: ")
+              << r2.getName(inputQnameSuffixDelim_)
+              << ". DRAGMAP requires name-sorted bam with read 1 immediately followed by read 2"));
+        }
+      } else {
+        BamRecordAccessor r1(prevGood);
+        if (r1.getName(inputQnameSuffixDelim_) == r2.getName(inputQnameSuffixDelim_)) {
+          // include last full paired record because its mate is already in
+          if (!r1.paired() || !r1.first() || !r2.last()) {
+            BOOST_THROW_EXCEPTION(BamException(
+                std::string("Improper order of records in bam detected at record name: ")
+                << r2.getName(inputQnameSuffixDelim_)
+                << " DRAGMAP requires name-sorted bam with read 1 immediately followed by read 2"));
+          }
+          return std::distance(s, (const char*)r2.next());
+        } else if (!r2.first()) {
+          BOOST_THROW_EXCEPTION(BamException(
+              std::string("Wrong order of records in bam detected at record name: ")
+              << r2.getName(inputQnameSuffixDelim_)
+              << ". DRAGMAP requires name-sorted bam with read 1 immediately followed by read 2"));
+        }
       }
+      // else exclude last paired record because we have not read the mate yet
     }
-    return std::distance(s, (const char*)prev);
+    // else single-ended record is fine
+    return std::distance(s, (const char*)lastGood);
   }
 
   void readMagic()

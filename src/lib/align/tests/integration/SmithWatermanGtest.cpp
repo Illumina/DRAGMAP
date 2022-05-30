@@ -9,14 +9,14 @@ TEST(SmithWaterman, Reset)
   using namespace dragenos::align;
   typedef SmithWatermanT<unsigned char, short, 48, 16, 11> SmithWaterman;
   constexpr auto                                           width      = SmithWaterman::width;
-  const auto                                               NOT_A_BASE = SmithWaterman::NOT_A_QUERY_BASE;
+//  const auto                                               NOT_A_BASE = SmithWaterman::NOT_A_QUERY_BASE;
   constexpr int                                            MATCH      = 2;
   constexpr int                                            MISMATCH   = -3;
   constexpr int                                            gapExtend  = 4;
   constexpr int                                            gapInit    = 5;
   const SimilarityScores                                   similarity(MATCH, MISMATCH);
   const auto random = std::string("ACGTTGAGGTTCCGTAGTATGACCTGTTTTAACGTTAGGCTGGAAAGTNNC");
-  ASSERT_GE(random.size(), width);
+  ASSERT_GE(random.size(), (size_t)width);
   const Query    query(random.begin(), random.end());
   SmithWaterman  sw(similarity, gapInit, gapExtend);
   const Database database(random.begin(), random.end());
@@ -40,17 +40,19 @@ TEST(SmithWaterman, MoveDown)
   const SimilarityScores                                   similarity(MATCH, MISMATCH);
   const auto random = std::string("ACGTTGAGGTTCCGTAGTATGACCTGTTTTAACGTTAGGCTGGAAAGTNNC");
   //                               CNNTGAAAGGTCGGATTGCAATTTTGTCCAGTATGATGCCTTGGAGTTGCA
-  ASSERT_GE(random.size(), width);
+  ASSERT_GE(random.size(), (size_t)width);
   const Query    query(random.begin(), random.end());
   const Database database(random.begin(), random.end());
   SmithWaterman  sw(similarity, gapInit, gapExtend);
   sw.reset(
       query.data(), query.data() + query.size(), database.data(), database.data() + database.size(), false);
-  ASSERT_EQ(sw.getMotions().size(), 0);
-  ASSERT_EQ(sw.getScores().size(), 0);
+  //RP: move down is illegal as initially antidiagonal is outside the matrix
+  sw.moveRight();
+  ASSERT_EQ(sw.getMotions().size(), 1u);
+  ASSERT_EQ(sw.getScores().size(), 1u);
   sw.moveDown();
-  ASSERT_EQ(sw.getMotions().size(), 1);
-  ASSERT_EQ(sw.getScores().size(), 1);
+  ASSERT_EQ(sw.getMotions().size(), 2u);
+  ASSERT_EQ(sw.getScores().size(), 2u);
   // first base matches, but first column is all 0 in HW
   ASSERT_EQ(sw.getScores().back()[0], 0);
   // all other have NOT_A_BASE on the query
@@ -58,15 +60,15 @@ TEST(SmithWaterman, MoveDown)
     ASSERT_EQ(sw.getScores().back()[i], 0) << "i == " << i;
   ASSERT_EQ(sw.getMotions().back(), Motion::down);
   sw.moveDown();
-  ASSERT_EQ(sw.getMotions().size(), 2);
-  ASSERT_EQ(sw.getScores().size(), 2);
+  ASSERT_EQ(sw.getMotions().size(), 3u);
+  ASSERT_EQ(sw.getScores().size(), 3u);
   // All mismatches (AC vs CA)
   for (size_t i = 0; sw.getScores().back().size() > i; ++i)
     ASSERT_EQ(sw.getScores().back()[i], 0) << "i == " << i;
   ASSERT_EQ(sw.getMotions().back(), Motion::down);
   sw.moveDown();
-  ASSERT_EQ(sw.getMotions().size(), 3);
-  ASSERT_EQ(sw.getScores().size(), 3);
+  ASSERT_EQ(sw.getMotions().size(), 4u);
+  ASSERT_EQ(sw.getScores().size(), 4u);
   // ACG vs GCA: C matches
   ASSERT_EQ(sw.getScores().back()[0], 0);
   ASSERT_EQ(sw.getMotions().back(), Motion::down);
@@ -76,7 +78,7 @@ TEST(SmithWaterman, MoveRight)
 {
   using namespace dragenos::align;
   typedef SmithWatermanT<unsigned char, short, 48, 16, 11> SmithWaterman;
-  typedef SmithWaterman::Motion                            Motion;
+//  typedef SmithWaterman::Motion                            Motion;
   constexpr auto                                           width     = SmithWaterman::width;
   constexpr int                                            MATCH     = 3;
   constexpr int                                            MISMATCH  = -4;
@@ -84,18 +86,18 @@ TEST(SmithWaterman, MoveRight)
   constexpr int                                            gapInit   = 5;
   const SimilarityScores                                   similarity(MATCH, MISMATCH);
   const auto random = std::string("ACGTTGAGGTTCCGTAGTATGACCTGTTTTAACGTTAGGCTGGAAAGT") + "AATTCCAGNNC";
-  ASSERT_GE(random.size(), width);
+  ASSERT_GE(random.size(), (size_t)width);
   const Query    query(random.begin(), random.begin() + width);
   const Database database(random.begin(), random.end());
   SmithWaterman  sw(similarity, gapInit, gapExtend);
   sw.reset(
       query.data(), query.data() + query.size(), database.data(), database.data() + database.size(), false);
-  ASSERT_EQ(sw.getMotions().size(), 0);
-  ASSERT_EQ(sw.getScores().size(), 0);
+  ASSERT_EQ(sw.getMotions().size(), 0u);
+  ASSERT_EQ(sw.getScores().size(), 0u);
   // move down into the actual query string
   for (unsigned i = 0; width > i; ++i) sw.moveRight();
-  ASSERT_EQ(sw.getMotions().size(), width);
-  ASSERT_EQ(sw.getScores().size(), width);
+  ASSERT_EQ(sw.getMotions().size(), (size_t)width);
+  ASSERT_EQ(sw.getScores().size(), (size_t)width);
 }
 
 TEST(SmithWaterman, PeakPosition)
@@ -148,7 +150,7 @@ TEST(SmithWaterman, AllSimilar)
   constexpr int                                            MISMATCH = -3;
   const SimilarityScores                                   similarity(MATCH, MISMATCH);
   const auto random = std::string("ACGTTGAGGTTCCGTAGTATGACCTGTTTTAACGTTAGGCTGGAAAGT");
-  ASSERT_EQ(random.size(), width);
+  ASSERT_EQ(random.size(), (size_t)width);
   const Query    query(random.begin(), random.end());
   const Database database(random.begin(), random.end());
   SmithWaterman  sw(similarity, 5, 4);

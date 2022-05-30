@@ -190,6 +190,10 @@ private:
   const uint64_t   extensionIdBinMask_;
   /// mask used to keep all related hashes (probing region, chains, extensions) in the same memory segment
   const uint64_t addressSegmentMask_;
+
+  /// local vectors used in addToPositionChains, member variables for malloc optimization
+  mutable std::vector<HashRecord>          hashRecords_;
+  mutable std::vector<ExtendTableInterval> extendTableIntervals_;
 };
 
 }  // namespace map

@@ -13,8 +13,8 @@ TEST(Hashtable, Constants)
 {
   using dragenos::reference::HashRecord;
   using dragenos::reference::Hashtable;
-  ASSERT_EQ(8, Hashtable::getRecordsPerBucket());
-  ASSERT_EQ(8, Hashtable::getBytesPerRecord());
+  ASSERT_EQ(8u, Hashtable::getRecordsPerBucket());
+  ASSERT_EQ(8u, Hashtable::getBytesPerRecord());
   ASSERT_EQ(sizeof(HashRecord), Hashtable::getBytesPerRecord());
-  ASSERT_EQ(64, Hashtable::getBytesPerBucket());
+  ASSERT_EQ(64u, Hashtable::getBytesPerBucket());
 }

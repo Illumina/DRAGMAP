@@ -42,6 +42,13 @@ using common::InvalidOptionException;
 
 DragenOsOptions::DragenOsOptions() : refDir_("./"), inputFile1_(""), inputFile2_(""), mapOnly_(false)
 {
+  // deprecated command line options. Still valid but will error when conflict with official ones or warning
+  // when the corresponding official is not being used instead.
+  unnamedOptions_.add_options()(
+      "Aligner.sw-method",
+      bpo::value<std::string>(&methodSmithWatermanDeprecated_),
+      "Smith Waterman implementation (dragen / mengyao  default = dragen)");
+
   namedOptions_.add_options()(
       "ref-dir,r",
       bpo::value<decltype(refDir_)>(&refDir_),
@@ -81,8 +88,8 @@ DragenOsOptions::DragenOsOptions() : refDir_("./"), inputFile1_(""), inputFile2_
           "Aligner.sw-all",
           bpo::value<int>(&swAll_)->default_value(swAll_),
           "Value of 1 forces smith waterman on all candidate alignments")(
-          "Aligner.sw-method",
-          bpo::value<std::string>(&methodSmithWaterman_)->default_value(methodSmithWaterman_),
+          "Aligner.smith-waterman-method",
+          bpo::value<std::string>(&methodSmithWaterman_),
           "Smith Waterman implementation (dragen / mengyao  default = dragen)")(
           "map-only",
           bpo::value<bool>(&mapOnly_)->default_value(mapOnly_),
@@ -284,6 +291,29 @@ DragenOsOptions::DragenOsOptions() : refDir_("./"), inputFile1_(""), inputFile2_
           ("verbose,v", bpo::bool_switch(&verbose_)->default_value(verbose_), "Be talkative");
 }
 
+template <typename OptionType>
+void checkWarnDeprecatedOption(
+    bpo::variables_map& vm,
+    const std::string&  officialName,
+    OptionType&         official,
+    const std::string&  deprecatedName,
+    const OptionType&   deprecated)
+{
+  if (!vm.count(officialName) && vm.count(deprecatedName) && official != deprecated) {
+    std::cerr << "WARNING: option '" << deprecatedName
+              << "' is deprecated. While still valid, it is recommended to use '" << officialName
+              << "' instead." << std::endl;
+    official = deprecated;
+    return;
+  }
+
+  if (vm.count(officialName) && vm.count(deprecatedName) && official != deprecated) {
+    BOOST_THROW_EXCEPTION(InvalidOptionException(
+        std::string("value specified for '") + officialName + "' conflicts with '" + deprecatedName +
+        "'. Please resolve command line option conflict."));
+  }
+}
+
 void DragenOsOptions::postProcess(bpo::variables_map& vm)
 {
   if (vm.count("help") || version_) {
@@ -294,12 +324,19 @@ void DragenOsOptions::postProcess(bpo::variables_map& vm)
     return;
   }
 
-  if (inputFile1_.empty() || !boost::filesystem::is_regular_file(inputFile1_)) {
+  checkWarnDeprecatedOption(
+      vm,
+      "Aligner.smith-waterman-method",
+      methodSmithWaterman_,
+      "Aligner.sw-method",
+      methodSmithWatermanDeprecated_);
+
+  if (inputFile1_.empty() || boost::filesystem::is_directory(inputFile1_)) {
     BOOST_THROW_EXCEPTION(
         InvalidOptionException("fastq-file1 or bam-input must point to an existing fastq file"));
   }
 
-  if (!inputFile2_.empty() && !boost::filesystem::is_regular_file(inputFile2_)) {
+  if (!inputFile2_.empty() && boost::filesystem::is_directory(inputFile2_)) {
     BOOST_THROW_EXCEPTION(InvalidOptionException("fastq-file2 must point to an existing fastq file"));
   }
 

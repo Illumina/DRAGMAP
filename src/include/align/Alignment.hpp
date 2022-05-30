@@ -30,6 +30,7 @@ typedef uint32_t FlagType;
 
 struct AlignmentHeader {
   enum Flag : FlagType {
+    NONE                            = 0,
     MULTIPLE_SEGMENTS               = 0x1,
     ALL_PROPERLY_ALIGNED            = 0x2,
     UNMAPPED                        = 0x4,

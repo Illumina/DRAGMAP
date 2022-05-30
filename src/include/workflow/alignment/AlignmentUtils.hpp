@@ -75,7 +75,8 @@ void storePeSupplementary(
   if (alignments.end() != sup) {
     sup->setFlags(
         align::Alignment::SUPPLEMENTARY_ALIGNMENT | align::Alignment::MULTIPLE_SEGMENTS |
-        (mate.isReverseComplement() ? align::Alignment::REVERSE_COMPLEMENT_NEXT_SEGMENT : 0));
+        (mate.isReverseComplement() ? align::Alignment::REVERSE_COMPLEMENT_NEXT_SEGMENT
+                                    : align::Alignment::NONE));
     sup->cigar().softClipsToHardClips();
     sup->setNextPosition(mate.getPosition());
     if (mate.getReference() != sup->getReference()) {
@@ -115,9 +116,10 @@ void storePeSecondary(
         //      std::cerr << "m:" << m << std::endl;
         a.setFlags(
             align::Alignment::SECONDARY_ALIGNMENT | align::Alignment::MULTIPLE_SEGMENTS |
-            (m.isUnmapped() ? align::Alignment::UNMAPPD_NEXT_SEGMENT : 0) |
-            (m.isReverseComplement() ? align::Alignment::REVERSE_COMPLEMENT_NEXT_SEGMENT : 0) |
-            (ap.isProperPair() ? align::Alignment::ALL_PROPERLY_ALIGNED : 0));
+            (m.isUnmapped() ? align::Alignment::UNMAPPD_NEXT_SEGMENT : align::Alignment::NONE) |
+            (m.isReverseComplement() ? align::Alignment::REVERSE_COMPLEMENT_NEXT_SEGMENT
+                                     : align::Alignment::NONE) |
+            (ap.isProperPair() ? align::Alignment::ALL_PROPERLY_ALIGNED : align::Alignment::NONE));
 
         a.cigar().softClipsToHardClips();
         a.setXs(primary->at(readIdx).getScore());
@@ -146,13 +148,12 @@ void storePairedBest(
   const align::Alignment& m = pair.at(a.isFirstInTemplate());
   a.setNextPosition(m.getPosition());
   a.setFlags(
-      align::Alignment::MULTIPLE_SEGMENTS | (m.isUnmapped() ? align::Alignment::UNMAPPD_NEXT_SEGMENT : 0) |
-      (m.isReverseComplement() ? align::Alignment::REVERSE_COMPLEMENT_NEXT_SEGMENT : 0) |
-      (pair.isProperPair() ? align::Alignment::ALL_PROPERLY_ALIGNED : 0));
+      align::Alignment::MULTIPLE_SEGMENTS |
+      (m.isUnmapped() ? align::Alignment::UNMAPPD_NEXT_SEGMENT : align::Alignment::NONE) |
+      (m.isReverseComplement() ? align::Alignment::REVERSE_COMPLEMENT_NEXT_SEGMENT : align::Alignment::NONE) |
+      (pair.isProperPair() ? align::Alignment::ALL_PROPERLY_ALIGNED : align::Alignment::NONE));
 
   if (a.getReference() == m.getReference()) {
-    a.setNextReference(-1);
-
     const int tlen = getTlen(a, m, insertSizeParameters.orientation_);
 
     if (!align::pairMatch(insertSizeParameters, a, m) || !pair.isProperPair()) {
@@ -205,10 +206,14 @@ void alignAndStorePair(
             aligner.unpaired(0),
             best,
             0,
-            [&](align::AlignmentPair& ap) {}) ||
+            [&](align::AlignmentPair& /*ap*/) {}) ||
         !pairBuilder.findSecondary(
-            pair.getLength(), alignmentPairs, aligner.unpaired(1), best, 1, [&](align::AlignmentPair& ap) {
-            })) {
+            pair.getLength(),
+            alignmentPairs,
+            aligner.unpaired(1),
+            best,
+            1,
+            [&](align::AlignmentPair& /*ap*/) {})) {
       storeUnmappedPair(pair, store);
       return;
     }

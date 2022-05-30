@@ -53,7 +53,10 @@ public:
   bool mapOnly_;
   int  swAll_ = 0;  // Aligner.sw-all
 
-  std::string methodSmithWaterman_   = "mengyao";  // "mengyao" : vectorized SW library /   "dragen" for legacy code
+  std::string methodSmithWatermanDeprecated_;
+  std::string methodSmithWaterman_ =
+      "mengyao";  // "mengyao" : vectorized SW library /   "dragen" for legacy code
+
   bool        samplingEnabled_       = true;  // sampling-enabled
   double      alignerPeMeanInsert_   = 0.0;   // Aligner.pe-stat-mean-insert
   double      alignerPeStddevInsert_ = 0.0;   // Aligner.pe-stat-stddev-insert

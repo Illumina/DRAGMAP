@@ -36,9 +36,6 @@ public:
 };
 
 class ReferenceDir7 : public ReferenceDir {
-  const bool mmap_;
-  const bool load_;
-
 public:
   ReferenceDir7(const boost::filesystem::path& path, bool mmap, bool load);
   ~ReferenceDir7();

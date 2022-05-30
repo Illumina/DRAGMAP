@@ -1,6 +1,6 @@
 # building all available system tests
 
-TEST_BUILD_DIR=$(BUILD)/test
+TEST_BUILD_DIR=$(DRAGEN_OS_BUILD)/test
 
 ifeq (1,$(HAS_GTEST))
 system_tests:=$(patsubst $(DRAGEN_OS_TEST_DIR)/%.cpp,%,$(wildcard $(DRAGEN_OS_TEST_DIR)/*Gtest.cpp))
@@ -14,13 +14,12 @@ all: test_programs
 system_tool := $(1)
 
 $(TEST_BUILD_DIR)/$(1).o: $(DRAGEN_OS_TEST_DIR)/$(1).cpp $(TEST_BUILD_DIR)/$(1).d $(TEST_BUILD_DIR)/.sentinel
-	$$(CXX) $$(DEPFLAGS) $$(CPPFLAGS) $$(GTEST_CPPFLAGS) $$(CXXFLAGS) -c -o $$@ $$<
-	$$(POSTCOMPILE)
+	$(SILENT_SE) $$(CXX) $$(DEPFLAGS) $$(CPPFLAGS) $$(GTEST_CPPFLAGS) $$(CXXFLAGS) -c -o $$@ $$< && $$(POSTCOMPILE)
 
 $(TEST_BUILD_DIR)/$(1): $(TEST_BUILD_DIR)/$(1).o $(libraries)
-	$$(CXX) $$(CPPFLAGS) $$(GTEST_CPPFLAGS) $$(CXXFLAGS) -o $$@ $$< $$(libraries)  $(GTEST_LDFLAGS) -lgtest_main -lgtest $$(LDFLAGS)
+	$(SILENT_SE) $$(CXX) $$(CPPFLAGS) $$(GTEST_CPPFLAGS) $$(CXXFLAGS) -o $$@ $$< $$(libraries)  $(GTEST_LDFLAGS) -lgtest_main -lgtest $$(LDFLAGS)
 
-#$(BUILD)/system/$(system_tool).d: ;
+#$(DRAGEN_OS_BUILD)/system/$(system_tool).d: ;
 include $(wildcard $(TEST_BUILD_DIR)/$(1).d)
 
 endef # define SYSTEM_TEST
@@ -41,13 +40,12 @@ define SYSTEM_TOOL
 system_tool := $(1)
 
 $(TEST_BUILD_DIR)/$(1).o: $(DRAGEN_OS_TEST_DIR)/$(1).cpp $(TEST_BUILD_DIR)/$(1).d $(TEST_BUILD_DIR)/.sentinel
-	$$(CXX) $$(DEPFLAGS) $$(CPPFLAGS) $$(CXXFLAGS) -c -o $$@ $$<
-	$$(POSTCOMPILE)
+	$(SILENT_SE) $$(CXX) $$(DEPFLAGS) $$(CPPFLAGS) $$(CXXFLAGS) -c -o $$@ $$< && $$(POSTCOMPILE)
 
 $(TEST_BUILD_DIR)/$(1): $(TEST_BUILD_DIR)/$(1).o $(libraries)
-	$$(CXX) $$(CPPFLAGS) $$(CXXFLAGS) -o $$@ $$< $$(libraries) $$(LDFLAGS)
+	$(SILENT_SE) $$(CXX) $$(CPPFLAGS) $$(CXXFLAGS) -o $$@ $$< $$(libraries) $$(LDFLAGS)
 
-#$(BUILD)/system/$(system_tool).d: ;
+#$(DRAGEN_OS_BUILD)/system/$(system_tool).d: ;
 include $(wildcard $(TEST_BUILD_DIR)/$(1).d)
 
 endef # define SYSTEM_TOOL

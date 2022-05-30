@@ -5,6 +5,7 @@
 #include "gtest/gtest.h"
 
 #include "align/Aligner.hpp"
+#include "align/SinglePicker.hpp"
 #include "reference/ReferenceDir.hpp"
 
 static char emptySpace[1024] = {};

@@ -13,11 +13,13 @@
  **/
 
 #include <boost/format.hpp>
-#include <boost/range/adaptor/reversed.hpp>
+//#include <boost/range/adaptor/reversed.hpp>
 #include <numeric>
 #include <unordered_set>
 
-#include "common/Crc32Hw.hpp"
+#include "host/infra/public/crc32_hw.h"
+
+//#include "common/Crc32Hw.hpp"
 #include "common/DragenLogger.hpp"
 #include "map/Mapper.hpp"
 
@@ -178,16 +180,16 @@ void Mapper::addToPositionChains(
   //std::cerr << "Mapper::addToPositionChains" << std::endl;
   //////////
 
-  // TODO: check the cost of the underlying memory allocations and cache the hash records buffer if needed
-  std::vector<HashRecord>          hashRecords;
-  std::vector<ExtendTableInterval> extendTableIntervals;
-  unsigned                         fromHalfExtension       = 0;  // all seeds start as primary seeds
-  const auto                       forwardData             = seed.getPrimaryData(false);
-  const auto                       reverseData             = seed.getPrimaryData(true);
-  const bool                       seedIsReverseComplement = (reverseData < forwardData);
-  const auto                       primaryData = seedIsReverseComplement ? reverseData : forwardData;
-  const auto                       hash        = getHashtable()->getPrimaryHasher()->getHash64(primaryData);
-  getHashtable()->getHits(hash, false, hashRecords, extendTableIntervals);
+  hashRecords_.clear();
+  extendTableIntervals_.clear();
+
+  unsigned   fromHalfExtension       = 0;  // all seeds start as primary seeds
+  const auto forwardData             = seed.getPrimaryData(false);
+  const auto reverseData             = seed.getPrimaryData(true);
+  const bool seedIsReverseComplement = (reverseData < forwardData);
+  const auto primaryData             = seedIsReverseComplement ? reverseData : forwardData;
+  const auto hash                    = getHashtable()->getPrimaryHasher()->getHash64(primaryData);
+  getHashtable()->getHits(hash, false, hashRecords_, extendTableIntervals_);
 
   ////////////////
   // std::cerr << "Mapper::addToPositionChains: found " << hashRecords.size() << " hash records:";
@@ -195,13 +197,13 @@ void Mapper::addToPositionChains(
   // std::cerr << std::endl;
   ////////////////
 
-  if (hashRecords.empty() and extendTableIntervals.empty()) {
+  if (hashRecords_.empty() and extendTableIntervals_.empty()) {
     return;
   }
   // DEPRECATED - V7 only
-  if (HashRecord::HIFREQ == hashRecords.front().getType()) {
+  if (HashRecord::HIFREQ == hashRecords_.front().getType()) {
     addRandomSamplesToPositionChains(
-        seed, seedIsReverseComplement, fromHalfExtension, hashRecords, chainBuilder);
+        seed, seedIsReverseComplement, fromHalfExtension, hashRecords_, chainBuilder);
     return;
   }
   // at this point, it's either HIT or EXTEND records. First EXTEND as needed
@@ -213,16 +215,16 @@ void Mapper::addToPositionChains(
   uint32_t            lastExtendTableSize = 0;  // defend against orphan EXTEND record
   BestIntervalTracker localBestIntvl(seed, 0, 0, 0);
 
-  if (extendTableIntervals.size() != lastExtendTableSize) {  // new intervals seen
-    if (extendTableIntervals.size() != 1) {
+  if (extendTableIntervals_.size() != lastExtendTableSize) {  // new intervals seen
+    if (extendTableIntervals_.size() != 1) {
       boost::format message =
-          boost::format("Expected size:1 extendTableIntervals, but got %i") % extendTableIntervals.size();
+          boost::format("Expected size:1 extendTableIntervals, but got %i") % extendTableIntervals_.size();
       BOOST_THROW_EXCEPTION(common::PostConditionException(message.str()));
     }
-    nextStart = extendTableIntervals.front().getStart();
+    nextStart = extendTableIntervals_.front().getStart();
     localBestIntvl =
-        BestIntervalTracker(seed, nextStart, extendTableIntervals.front().getLength(), fromHalfExtension);
-    lastExtendTableSize = extendTableIntervals.size();
+        BestIntervalTracker(seed, nextStart, extendTableIntervals_.front().getLength(), fromHalfExtension);
+    lastExtendTableSize = extendTableIntervals_.size();
 #ifdef TRACE_SEED_CHAINS
     std::cerr << "Init localBestIntvlPtr with\t" << localBestIntvl.getSeed()
               << "\tseedLength:" << localBestIntvl.getSeedLength()
@@ -232,12 +234,12 @@ void Mapper::addToPositionChains(
 #endif
   }
 
-  while (!hashRecords.empty() && (HashRecord::EXTEND == hashRecords.front().getType())) {
+  while (!hashRecords_.empty() && (HashRecord::EXTEND == hashRecords_.front().getType())) {
     const uint64_t addressSegment = hash & addressSegmentMask_;
-    const auto     extendRecord   = hashRecords.front();
+    const auto     extendRecord   = hashRecords_.front();
     // DEPRECATED - V7 only
     addRandomSamplesToPositionChains(
-        seed, seedIsReverseComplement, fromHalfExtension, hashRecords, chainBuilder);
+        seed, seedIsReverseComplement, fromHalfExtension, hashRecords_, chainBuilder);
 
     ////////////////
     // std::cerr << "Mapper::addToPositionChains: extented seed from " << fromHalfExtension << " to " << (fromHalfExtension + extendRecord.getExtensionLength() / 2) << ":";
@@ -249,26 +251,27 @@ void Mapper::addToPositionChains(
     // std::cerr << std::endl;
     ////////////////
 
-    hashRecords.clear();
+    hashRecords_.clear();
     if (seed.isValid(fromHalfExtension + extendRecord.getExtensionLength() / 2)) {
       const auto extendedKey =
           getExtendedKey(seed, extensionHash, extendRecord, fromHalfExtension, seedIsReverseComplement);
       const auto extendedHash = addressSegment | getHashtable()->getSecondaryHasher()->getHash64(extendedKey);
-      getHashtable()->getHits(extendedHash, true, hashRecords, extendTableIntervals);
+      getHashtable()->getHits(extendedHash, true, hashRecords_, extendTableIntervals_);
       fromHalfExtension += extendRecord.getExtensionLength() / 2;
       extensionHash = extendedHash;
 
       // if extension failed, i.e. neither HIT nor INTERVAL
-      if (hashRecords.empty() and lastExtendTableSize == extendTableIntervals.size()) extensionFailed = true;
+      if (hashRecords_.empty() and lastExtendTableSize == extendTableIntervals_.size())
+        extensionFailed = true;
       // local best interval tracking, process if extendTableIntervals is updated
-      else if (lastExtendTableSize != extendTableIntervals.size()) {
-        nextStart += extendTableIntervals.back().getStart();
+      else if (lastExtendTableSize != extendTableIntervals_.size()) {
+        nextStart += extendTableIntervals_.back().getStart();
         BestIntervalTracker currentIntvl(
-            seed, nextStart, extendTableIntervals.back().getLength(), fromHalfExtension);
+            seed, nextStart, extendTableIntervals_.back().getLength(), fromHalfExtension);
         if (!localBestIntvl.isValidInterval()) {
-          if (extendTableIntervals.size() != 1) {
+          if (extendTableIntervals_.size() != 1) {
             boost::format message = boost::format("Expected size:1 extendTableIntervals, but got %i") %
-                                    extendTableIntervals.size();
+                                    extendTableIntervals_.size();
             BOOST_THROW_EXCEPTION(common::PostConditionException(message.str()));
           }
           localBestIntvl = currentIntvl;
@@ -304,22 +307,22 @@ void Mapper::addToPositionChains(
                     << std::endl;
 #endif
         }
-        lastExtendTableSize = extendTableIntervals.size();
+        lastExtendTableSize = extendTableIntervals_.size();
       }
       // else we see orphan EXTEND record or only HIT
     } else
       extensionFailed = true;
   }
-  if (!extendTableIntervals.empty() &&
-      extendTableIntervals.back().getLength() > getHashtable()->getMaxSeedFrequency())
+  if (!extendTableIntervals_.empty() &&
+      extendTableIntervals_.back().getLength() > getHashtable()->getMaxSeedFrequency())
     extensionFailed = true;
   // global best interval tracking
   if (localBestIntvl.isValidInterval()) globalBestIntvls.push_back(localBestIntvl);
 
 #ifdef TRACE_SEED_CHAINS
-  std::cerr << "Mapper::addToPositionChains: found " << extendTableIntervals.size()
+  std::cerr << "Mapper::addToPositionChains: found " << extendTableIntervals_.size()
             << " extendTableIntervals records:";
-  for (const auto& record : extendTableIntervals)
+  for (const auto& record : extendTableIntervals_)
     std::cerr << "  " << std::setfill('0') << std::setw(8) << (record.getStart()) << ":" << std::setw(8)
               << (record.getLength()) << std::setfill(' ') << "\thex:" << std::hex << std::setfill('0')
               << std::setw(8) << (record.getStart()) << ":" << std::setw(8) << (record.getLength())
@@ -328,9 +331,10 @@ void Mapper::addToPositionChains(
 #endif
 
   // at this point there should be only HIT records (possibly 0) - add them to the seed chains
-  if (!hashRecords.empty()) {
+  if (!hashRecords_.empty()) {
     bool isHitSeen = false;
-    for (const auto& record : boost::adaptors::reverse(hashRecords)) {
+    //    for (const auto& record : boost::adaptors::reverse(hashRecords_)) {
+    for (const auto& record : boost::make_iterator_range(hashRecords_.rbegin(), hashRecords_.rend())) {
       // special case encountered in alt-aware hashtables
       if (record.isDummyHit()) {
         continue;
@@ -351,15 +355,15 @@ void Mapper::addToPositionChains(
       }
     }
     if (isHitSeen) return;
-  } else if (!extendTableIntervals.empty()) {
+  } else if (!extendTableIntervals_.empty()) {
     const uint32_t start = std::accumulate(
-        extendTableIntervals.begin(),
-        extendTableIntervals.end(),
+        extendTableIntervals_.begin(),
+        extendTableIntervals_.end(),
         0UL,
         [](const uint32_t current, const ExtendTableInterval& interval) {
           return current + interval.getStart();
         });
-    const uint32_t length = extendTableIntervals.back().getLength();
+    const uint32_t length = extendTableIntervals_.back().getLength();
 
     if (extensionFailed) {
       num_extension_failure++;
@@ -375,7 +379,7 @@ void Mapper::addToPositionChains(
             SeedPosition(seed, record.getPosition(), fromHalfExtension), orientation, isRandomSample);
       }
     } else {
-      assert(extendTableIntervals.back().getLength() <= getHashtable()->getMaxSeedFrequency());
+      assert(extendTableIntervals_.back().getLength() <= getHashtable()->getMaxSeedFrequency());
       for (uint32_t i = start + length - 1; i != start - 1; --i) {
         const auto& record         = getHashtable()->getExtendTableRecord(i);
         const bool  isRandomSample = false;
@@ -394,6 +398,10 @@ void Mapper::addToPositionChains(
     //        boost::format("Expected non-empty extendTableIntervals, but got %i") % extendTableIntervals.size();
     //    BOOST_THROW_EXCEPTION(common::PostConditionException(message.str()));
   }
+
+  // used only locally
+  hashRecords_.clear();
+  extendTableIntervals_.clear();
 }
 
 void Mapper::addExtraIntervalSamplesToPositionChains(
@@ -468,7 +476,7 @@ void Mapper::getRandomSamplesFromMatchInterval(
   // For 1 random sample after failed seed extension:
   if (1 == sampleSize) {
     maxRounds  = 1;
-    uint32_t A = common::crc32c_hw(0, reinterpret_cast<const uint8_t*>(readName.data()), readName.size());
+    uint32_t A = crc32c_hw(0, reinterpret_cast<const uint8_t*>(readName.data()), readName.size());
     uint32_t B = read->getPosition() << 31;
     B |= 0x40000000;
     B |= seed.getReadPosition() & 0x3FFFFFFF;
@@ -477,8 +485,8 @@ void Mapper::getRandomSamplesFromMatchInterval(
   // For K random samples from a (single) extra interval:
   else if (1 < sampleSize) {
     maxRounds = 0x4000;
-    SEED      = common::crc32c_hw(0, reinterpret_cast<const uint8_t*>(readName.data()), readName.size());
-    SEED      = read->getPosition() ? (SEED ^(1<<31)) : SEED;
+    SEED      = crc32c_hw(0, reinterpret_cast<const uint8_t*>(readName.data()), readName.size());
+    SEED      = read->getPosition() ? (SEED ^ (1 << 31)) : SEED;
   } else {
     boost::format message = boost::format("Expected positive target sampleSize: %d") % sampleSize;
     BOOST_THROW_EXCEPTION(common::PostConditionException(message.str()));
@@ -493,7 +501,7 @@ void Mapper::getRandomSamplesFromMatchInterval(
   uint32_t K = 0;
 
   for (uint32_t X = SEED; K < sampleSize and X < SEED + maxRounds; X++) {
-    C                  = common::crc32c_hw(C, reinterpret_cast<const uint8_t*>(&X), 4);
+    C                  = crc32c_hw(C, reinterpret_cast<const uint8_t*>(&X), 4);
     sampledIndex       = std::floor(intvl_len * double(C) / std::pow(2, 32));
     const auto& record = getHashtable()->getExtendTableRecord(intvl_start + sampledIndex);
 
@@ -513,7 +521,7 @@ void Mapper::getRandomSamplesFromMatchInterval(
     }
     if (0x4000 < intvl_len) {
       Z            = SEED + sampledIndex;
-      sampledIndex = common::crc32c_hw(0, reinterpret_cast<const uint8_t*>(&Z), 4) & 0x3FFF;
+      sampledIndex = crc32c_hw(0, reinterpret_cast<const uint8_t*>(&Z), 4) & 0x3FFF;
     }
     if (hitVector.test(sampledIndex)) {
 #ifdef TRACE_SEED_CHAINS

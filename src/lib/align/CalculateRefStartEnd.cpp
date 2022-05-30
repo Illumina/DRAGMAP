@@ -30,8 +30,8 @@
 namespace dragenos {
 namespace align {
 
-static const int            ALN_CFG_SW_EARLY_MAX = 256;
-std::pair<int64_t, int64_t> calculateRefStartEnd(const sequences::Read& read, const map::SeedChain& chain)
+static const int              ALN_CFG_SW_EARLY_MAX = 256;
+std::pair<uint64_t, uint64_t> calculateRefStartEnd(const sequences::Read& read, const map::SeedChain& chain)
 {
   //    std::cerr << "calculateRefStartEnd:" << chain << std::endl;
   //  const auto beginPosition = chain.firstReferencePosition();// - 36;// - 12;
@@ -97,14 +97,14 @@ std::pair<int64_t, int64_t> calculateRefStartEnd(const sequences::Read& read, co
   //  //     +
   //  //    chain.isReverseComplement();
 
-  const int64_t ref_start = /*ch_cmd.ref_reverse ?
+  const uint64_t ref_start = /*ch_cmd.ref_reverse ?
     (chain.lastSeedReferencePosition() + ref_start_adj) :*/
       chain.firstSeedReferencePosition() - ref_start_adj;
 
   //  -- Compute the last reference base to fetch
   const int64_t ref_m1_v = ref_length - 1;
 
-  const int64_t ref_end = /*ch_cmd.ref_reverse ? (ref_start - ref_m1_v) :*/ (ref_start + ref_m1_v);
+  const uint64_t ref_end = /*ch_cmd.ref_reverse ? (ref_start - ref_m1_v) :*/ (ref_start + ref_m1_v);
 
   //    std::cerr << "beg_gap=" << beg_gap << ", end_gap=" << end_gap << ", skip_gap=" << skip_gap << ", tail_gap=" << tail_gap <<
   //      ", head_gap=" << head_gap << std::uppercase <<

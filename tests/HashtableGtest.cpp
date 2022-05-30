@@ -132,22 +132,22 @@ TEST_F(HashtableFixture, getBits)
   using namespace dragenos::common::bits;
   const uint64_t v = 0xFEDCBA9876543210;
   ASSERT_EQ(v, (getBits<0, 64>(v)));
-  ASSERT_EQ(0, (getBits<0, 4>(v)));
-  ASSERT_EQ(1, (getBits<4, 4>(v)));
-  ASSERT_EQ(2, (getBits<8, 4>(v)));
-  ASSERT_EQ(3, (getBits<12, 4>(v)));
-  ASSERT_EQ(4, (getBits<16, 4>(v)));
-  ASSERT_EQ(5, (getBits<20, 4>(v)));
-  ASSERT_EQ(6, (getBits<24, 4>(v)));
-  ASSERT_EQ(7, (getBits<28, 4>(v)));
-  ASSERT_EQ(8, (getBits<32, 4>(v)));
-  ASSERT_EQ(9, (getBits<36, 4>(v)));
-  ASSERT_EQ(10, (getBits<40, 4>(v)));
-  ASSERT_EQ(11, (getBits<44, 4>(v)));
-  ASSERT_EQ(12, (getBits<48, 4>(v)));
-  ASSERT_EQ(13, (getBits<52, 4>(v)));
-  ASSERT_EQ(14, (getBits<56, 4>(v)));
-  ASSERT_EQ(15, (getBits<60, 4>(v)));
+  ASSERT_EQ(0u, (getBits<0, 4>(v)));
+  ASSERT_EQ(1u, (getBits<4, 4>(v)));
+  ASSERT_EQ(2u, (getBits<8, 4>(v)));
+  ASSERT_EQ(3u, (getBits<12, 4>(v)));
+  ASSERT_EQ(4u, (getBits<16, 4>(v)));
+  ASSERT_EQ(5u, (getBits<20, 4>(v)));
+  ASSERT_EQ(6u, (getBits<24, 4>(v)));
+  ASSERT_EQ(7u, (getBits<28, 4>(v)));
+  ASSERT_EQ(8u, (getBits<32, 4>(v)));
+  ASSERT_EQ(9u, (getBits<36, 4>(v)));
+  ASSERT_EQ(10u, (getBits<40, 4>(v)));
+  ASSERT_EQ(11u, (getBits<44, 4>(v)));
+  ASSERT_EQ(12u, (getBits<48, 4>(v)));
+  ASSERT_EQ(13u, (getBits<52, 4>(v)));
+  ASSERT_EQ(14u, (getBits<56, 4>(v)));
+  ASSERT_EQ(15u, (getBits<60, 4>(v)));
 }
 
 TEST_F(HashtableFixture, DISABLED_ExploreHhashtablev8)
@@ -474,7 +474,7 @@ std::cerr << "\n---------------------------" << std::endl;
   ASSERT_TRUE(secCrcPolynomial == "1524CA66E8D39"); // the value from hash_table.cfg
   CrcHasher priCrcHasher(priCrcPolynomial);
   CrcHasher secCrcHasher(secCrcPolynomial);
-  ASSERT_EQ(21, hashtableConfig->getPrimarySeedBases());
+  ASSERT_EQ(21u, hashtableConfig->getPrimarySeedBases());
 }
 
 std::ostream &printBases(std::ostream &os, const dragenos::sequences::Read &read)
@@ -520,8 +520,8 @@ std::vector<uint8_t> encode4bpbTo2bpb(const std::vector<unsigned char> sequence)
 TEST_F(HashtableFixture, CheckReferenceBasesHashtableV8)
 {
   //Chr1 starts at position 163840 - 9984 first bases (Ns) are trimmed. 
-  ASSERT_EQ(163840, hashtableConfig->getSequences()[0].seqStart);
-  ASSERT_EQ(9984, hashtableConfig->getSequences()[0].begTrim);
+  ASSERT_EQ(163840u, hashtableConfig->getSequences()[0].seqStart);
+  ASSERT_EQ(9984u, hashtableConfig->getSequences()[0].begTrim);
   // Beginning of the untrimmed sequence from FASTA:
   //                                             NNNNNNNNNNNNNNNNTAACCCTAAC
   // CCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTA
@@ -553,7 +553,7 @@ TEST_F(HashtableFixture, CheckReferenceBasesHashtableV8)
   ASSERT_EQ(0x35, encoded2bpb[5]); // 22, 18: CCTA: 00110101
   ASSERT_EQ(0x54, encoded2bpb[6]); // 21, 22: ACCC: 01010100
 
-  ASSERT_EQ(128, sequence.size());
+  ASSERT_EQ(128u, sequence.size());
   ASSERT_EQ(0x00014000 * 2, 163840);
   for (size_t i = 0; 0x14000 > i; ++i)
   {
@@ -584,26 +584,26 @@ TEST_F(HashtableFixture, CheckReferenceBasesHashtableV8)
   // Generate the seeds from a few bases before to a few bases after and hash them
   // start at offset ((175/4) * 4)==172 and do 32 primary seeds
   const unsigned seedLength = hashtableConfig->getPrimarySeedBases();
-  ASSERT_EQ(21, seedLength);
+  ASSERT_EQ(21u, seedLength);
   const uint64_t seedMask = (((uint64_t)1) << (seedLength * 2)) - 1;
   // check that the mask has 2 * seedLength LSB set
   for (unsigned i = 0; 2 * seedLength > i; ++i)
   {
-    ASSERT_EQ(1, (seedMask >> i) & 1) << "i: " << i;
+    ASSERT_EQ(1u, (seedMask >> i) & 1) << "i: " << i;
   }
   // check that the mask bits after that al 0
-  ASSERT_EQ(0, seedMask >> (2 * seedLength));
+  ASSERT_EQ(0u, seedMask >> (2 * seedLength));
   const unsigned newBaseShift = 2 * seedLength - 2;
   using dragenos::sequences::CrcPolynomial;
   CrcPolynomial priCrcPolynomial(hashtableConfig->getPrimaryCrcBits(), hashtableConfig->getPriCrcPoly());
   ASSERT_TRUE(priCrcPolynomial == "2C991CE6A8DD55"); // the value from hash_table.cfg
-  ASSERT_EQ(54, hashtableConfig->getPrimaryCrcBits());
+  ASSERT_EQ(54u, hashtableConfig->getPrimaryCrcBits());
   // void* crcHash64Init(int bits, void const* poly);
   const uint64_t poly = 0x2C991CE6A8DD55;
   uint64_t *init = reinterpret_cast<uint64_t*>(crcHash64Init(54, &poly));
-  ASSERT_EQ(encoded2bpb.size(), 64);
+  ASSERT_EQ(encoded2bpb.size(), 64u);
   const size_t begin = 175 / 4;
-  ASSERT_GT(64, begin + 8 + 5); // enough space to get 32 deeds of 21 bases
+  ASSERT_GT(64u, begin + 8 + 5); // enough space to get 32 deeds of 21 bases
   uint64_t seedValue = (*reinterpret_cast<const uint64_t *>(encoded2bpb.data() + begin)) & seedMask;
   const uint8_t *bytePtr = encoded2bpb.data() + begin + 5; // pointer to the byte that contains the next bases
   uint8_t byte = (*bytePtr) >> 2;
@@ -667,7 +667,7 @@ TEST_F(HashtableFixture, DISABLED_CheckReferenceBasesHashtableV7)
 
   const std::vector<unsigned char> sequence {1,4, 2,8, 2,1, 4,1, 8,4, 8,2, 8,1, 1,2,   2,2, 8,2, 8,1, 1,8, 2,1, 1,2, 8,2, 1,2,
                                              4,2, 4,4, 4,1, 8,2, 8,2, 2,2, 8,1, 2,4,   8,1, 8,8, 4,4, 1,8, 8,8, 8,8, 4,2, 2,8 };
-  ASSERT_EQ(64, sequence.size());
+  ASSERT_EQ(64u, sequence.size());
   for(auto s: sequence)
   {
     ASSERT_EQ(s, referenceSequence.getBase(position));
@@ -888,7 +888,7 @@ TEST_F(HashtableFixture, DISABLED_Config)
   getline(is, line); // 2nd line is command line
   getline(is, line);
   ASSERT_EQ(std::string("#    Hash table version 7"), line);
-  ASSERT_LE(7, hashtableConfig->getHashtableVersion());
+  ASSERT_LE(7u, hashtableConfig->getHashtableVersion());
   getline(is, line); // 4th line is "#"
   getline(is, line); // 5th line is "# Do not modify.
   getline(is, line); // 6th line is empty
@@ -899,8 +899,8 @@ TEST_F(HashtableFixture, DISABLED_Config)
   }
   const std::map<std::string, std::string> keyValuesMap(keyValues.begin(), keyValues.end());
   ASSERT_EQ(keyValuesMap.size(), keyValues.size()); // check that all keys are unique
-  ASSERT_EQ(stol(keyValuesMap.at("reference_len_raw")), hashtableConfig->getReferenceLength());
-  ASSERT_EQ(stoi(keyValuesMap.at("reference_sequences")), hashtableConfig->getNumberOfSequences());
+  ASSERT_EQ((unsigned long)stol(keyValuesMap.at("reference_len_raw")), hashtableConfig->getReferenceLength());
+  ASSERT_EQ((unsigned)stoi(keyValuesMap.at("reference_sequences")), hashtableConfig->getNumberOfSequences());
   ASSERT_LT(5 * hashtableConfig->getNumberOfSequences(), keyValues.size()); // at least 5 entries per sequence
   for(unsigned i = 0; hashtableConfig->getNumberOfSequences() > i; ++i)
   {

@@ -285,6 +285,7 @@ void SmithWatermanT<C, T, WIDTH, ALIGN, STEERING_DELAY>::reset(
   // this is required to avoid reallocation of score vectors when scores_ runs out of capacity for adding new
   scores_.reserve(querySize * std::distance(databaseBegin, databaseEnd) + width);
   bs_.clear();
+  bs_.reserve(querySize * std::distance(databaseBegin, databaseEnd) + width);
 
   motions_.clear();
   globalMax_       = 0;
@@ -336,7 +337,6 @@ void SmithWatermanT<C, T, WIDTH, ALIGN, STEERING_DELAY>::moveDown()
 
   assert(scores_.capacity() > scores_.size());
   scores_.push_back(wavefront_.moveDown(similarities, gapInit_, gapExtend_));
-
   bs_.push_back(wavefront_.getLastBs());
   updateMotions(Motion::down);
   updateMax();

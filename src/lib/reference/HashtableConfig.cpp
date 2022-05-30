@@ -54,13 +54,13 @@ std::vector<HashtableConfig::Region> HashtableConfig::getTrimmedRegions() const
   return trimmedRegions;
 }
 
-std::pair<size_t, int64_t> HashtableConfig::convertToReferenceCoordinates(int64_t position) const
+std::pair<size_t, int64_t> HashtableConfig::convertToReferenceCoordinates(uint64_t position) const
 {
   auto sequence = std::lower_bound(
       sequences_.begin(),
       sequences_.end(),
       position,
-      [](const HashtableConfig::Sequence& sq, int64_t position) {
+      [](const HashtableConfig::Sequence& sq, uint64_t position) {
         const auto positionRange = getPositionRange(sq);
         return positionRange.first < position;
       });
@@ -95,7 +95,7 @@ std::pair<size_t, int64_t> HashtableConfig::convertToReferenceCoordinates(int64_
     ++sequence;
   }
 
-  const auto lastRange = getPositionRange(sequences_.back());
+  //  const auto lastRange = getPositionRange(sequences_.back());
   //  boost::format message = boost::format("reference position greater than last sequence position: last sequence end=%i: queried position=%i") % lastRange.second % position;
   // TODO: verify that the position can actually be greater than the end of the sequence (because of padding)
   //  BOOST_THROW_EXCEPTION(common::InvalidParameterException(message.str()));

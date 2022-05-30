@@ -15,23 +15,22 @@
 #ifndef ALIGN_SAM_HPP
 #define ALIGN_SAM_HPP
 
-#include <algorithm>
 #include <boost/range/adaptor/reversed.hpp>
-#include <cctype>
 #include <iostream>
 
-#include "align/Alignment.hpp"
+#include "align/Mapq.hpp"
+#include "reference/HashtableConfig.hpp"
 #include "sequences/Read.hpp"
 
 namespace dragenos {
-namespace align {
+namespace sam {
 
-class Sam {
+class SamGenerator {
   static const char                 Q0_ = 33;
   const reference::HashtableConfig& hashtableConfig_;
 
 public:
-  Sam(const reference::HashtableConfig& hashtableConfig) : hashtableConfig_(hashtableConfig) {}
+  SamGenerator(const reference::HashtableConfig& hashtableConfig) : hashtableConfig_(hashtableConfig) {}
 
   template <typename ReadT>
   static std::string getReadName(const ReadT& read)
@@ -52,8 +51,8 @@ public:
     } else {
       os << (-1 == alignment.getReference() ? std::string("=")
                                             : hashtableConfig_.getSequenceName(alignment.getReference()))
-         << '\t' << alignment.getPosition() + 1 << '\t' << std::min<MapqType>(alignment.getMapq(), MAPQ_MAX)
-         << '\t';
+         << '\t' << alignment.getPosition() + 1 << '\t'
+         << std::min<align::MapqType>(alignment.getMapq(), align::MAPQ_MAX) << '\t';
       if (alignment.getCigar().empty()) {
         os << "*\t";
       } else {
@@ -64,7 +63,7 @@ public:
     if (!alignment.hasMultipleSegments() || (alignment.isUnmapped() && alignment.isUnmappedNextSegment())) {
       os << "*\t0\t";
     } else {
-      os << (-1 == alignment.getNextReference()
+      os << (-1 == alignment.getNextReference() || alignment.getReference() == alignment.getNextReference()
                  ? std::string("=")
                  : hashtableConfig_.getSequenceName(alignment.getNextReference()))
          << '\t' << alignment.getNextPosition() + 1 << '\t';
@@ -76,14 +75,14 @@ public:
     if (-1 != alignment.getScore()) {
       os << "\tAS:i:" << alignment.getScore();
     }
-    if (INVALID_SCORE != alignment.getXs()) {
+    if (align::INVALID_SCORE != alignment.getXs()) {
       os << "\tXS:i:" << alignment.getXs();
     }
     if (-1 != alignment.getMismatchCount()) {
       os << "\tNM:i:" << alignment.getMismatchCount();
     }
-    if (MAPQ_MAX < alignment.getMapq()) {
-      os << "\tXQ:i:" << std::min<MapqType>(alignment.getMapq(), HW_MAPQ_MAX);
+    if (align::MAPQ_MAX < alignment.getMapq()) {
+      os << "\tXQ:i:" << std::min<align::MapqType>(alignment.getMapq(), align::HW_MAPQ_MAX);
     }
 
     if (alignment.getSa()) {
@@ -92,7 +91,7 @@ public:
          << ',' << (sa.reverse() ? "-," : "+,") << sa.getCigar()
          << ','
          //         << std::min<MapqType>(sa.getMapq(), MAPQ_MAX) <<
-         << std::min<MapqType>(sa.getMapq(), HW_MAPQ_MAX) << ',' << sa.getNm() << ';';
+         << std::min<align::MapqType>(sa.getMapq(), align::HW_MAPQ_MAX) << ',' << sa.getNm() << ';';
     }
     return os;
   }
@@ -119,7 +118,7 @@ public:
   {
     const auto& bases = read.getBases();
     const auto& cigar = a.getCigar();
-    if (cigar.countEndHardClips() + cigar.countStartHardClips() >= bases.size()) return os;
+    if (cigar.countEndHardClips() + cigar.countStartHardClips() >= int(bases.size())) return os;
     if (a.isReverseComplement()) {
       auto range = boost::adaptors::reverse(bases);
       range.advance_begin(cigar.countStartHardClips());
@@ -143,7 +142,7 @@ public:
   {
     const auto& qualities = read.getQualities();
     const auto& cigar     = a.getCigar();
-    if (cigar.countEndHardClips() + cigar.countStartHardClips() >= qualities.size()) return os;
+    if (cigar.countEndHardClips() + cigar.countStartHardClips() >= int(qualities.size())) return os;
     if (a.isReverseComplement()) {
       auto range = boost::adaptors::reverse(qualities);
       range.advance_begin(cigar.countStartHardClips());
@@ -190,7 +189,7 @@ public:
   }
 };
 
-}  // namespace align
+}  // namespace sam
 }  // namespace dragenos
 
 #endif  // #ifndef ALIGN_SAM_HPP

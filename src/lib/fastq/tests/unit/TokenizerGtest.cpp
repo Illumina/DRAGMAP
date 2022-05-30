@@ -182,13 +182,13 @@ TEST(Tokenizer, ZeroLength)
   ASSERT_EQ(false, stm.eof());
   ASSERT_EQ(false, t.token().empty());
   ASSERT_EQ(true, t.token().valid());
-  ASSERT_EQ(0, t.token().readLength());
+  ASSERT_EQ(0u, t.token().readLength());
 
   ASSERT_EQ(true, t.next());
   ASSERT_EQ(true, stm.eof());
   ASSERT_EQ(false, t.token().empty());
   ASSERT_EQ(true, t.token().valid());
-  ASSERT_NE(0, t.token().readLength());
+  ASSERT_NE(0u, t.token().readLength());
 
   ASSERT_EQ(false, t.next());
   ASSERT_EQ(true, stm.eof());
@@ -207,5 +207,5 @@ TEST(Tokenizer, EmptyInput)
   ASSERT_EQ(true, stm.eof());
   ASSERT_EQ(true, t.token().empty());
   ASSERT_EQ(false, t.token().valid());
-  ASSERT_EQ(0, t.token().readLength());
+  ASSERT_EQ(0u, t.token().readLength());
 }

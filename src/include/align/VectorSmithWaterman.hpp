@@ -17,7 +17,7 @@
 
 #include "align/SimilarityScores.hpp"
 #include "common/DragenLogger.hpp"
-#include "ssw/ssw.h"
+#include "ssw/ssw.hpp"
 
 #include "align/Alignment.hpp"
 #include "align/Database.hpp"
@@ -45,6 +45,8 @@ public:
         sswScoringMat_[ii + jj * sswAlphabetSize_] = similarity_(ii, jj);
       }
     }
+
+    sswBias_ = ssw_get_bias(sswScoringMat_, sswAlphabetSize_);
 
 #ifdef TRACE_VECTOR_SMITH_WATERMAN
     printf("Scoring matrix for vectorized Smith Waterman\n");
@@ -92,9 +94,15 @@ private:
   const int8_t                              unclipScore_;
   int8_t*                                   sswScoringMat_;
   int                                       sswAlphabetSize_;
+  int32_t                                   sswBias_;
   std::array<int, 2>                        querySize_;
-  std::array<s_profile*, 2>                 profile_;
-  std::array<s_profile*, 2>                 profileRev_;
+#ifdef __AVX2__
+  std::array<s_profile_avx2*, 2> profile_;
+  std::array<s_profile_avx2*, 2> profileRev_;
+#else
+  std::array<s_profile_sse2*, 2> profile_;
+  std::array<s_profile_sse2*, 2> profileRev_;
+#endif
 };
 
 }  // namespace align

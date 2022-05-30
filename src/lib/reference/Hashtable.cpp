@@ -30,13 +30,13 @@ Hashtable::Hashtable(const HashtableConfig* config, const uint64_t* table, const
 }
 
 bool Hashtable::processInitialBucket(
-    const Bucket&                     bucket,
-    const Hash&                       hash,
-    const uint64_t                    matchBits,
-    const uint8_t                     hashThreadId,
-    std::vector<HashRecord>&          hits,
-    std::vector<ExtendTableInterval>& extendTableIntervals,
-    const bool                        trace) const
+    const Bucket&            bucket,
+    const Hash&              hash,
+    const uint64_t           matchBits,
+    const uint8_t            hashThreadId,
+    std::vector<HashRecord>& hits,
+    std::vector<ExtendTableInterval>& /*extendTableIntervals*/,
+    const bool trace) const
 {
   // TODO: check if it is required to have at least one hash record in the thread Id to start probing
   bool       lastInThread = true;
@@ -105,12 +105,12 @@ bool Hashtable::processInitialBucket(
 }
 
 bool Hashtable::probeBucket(
-    const Bucket&                     bucket,
-    const uint64_t                    matchBits,
-    const uint8_t                     hashThreadId,
-    std::vector<HashRecord>&          hits,
-    std::vector<ExtendTableInterval>& extendTableIntervals,
-    const bool                        trace) const
+    const Bucket&            bucket,
+    const uint64_t           matchBits,
+    const uint8_t            hashThreadId,
+    std::vector<HashRecord>& hits,
+    std::vector<ExtendTableInterval>& /*extendTableIntervals*/,
+    const bool trace) const
 {
   auto hashRecord = bucket.cbegin();
   // alternate exit on relevant hashRecord->isLastInThread()
@@ -200,13 +200,13 @@ bool Hashtable::followChain(const HashRecord& record, const Hash hash) const
 }
 
 bool Hashtable::chainBucket(
-    const Bucket&                     bucket,
-    const Hash&                       hash,
-    const uint64_t                    matchBits,
-    const uint8_t                     hashThreadId,
-    std::vector<HashRecord>&          hits,
-    std::vector<ExtendTableInterval>& extendTableIntervals,
-    const bool                        trace) const
+    const Bucket&            bucket,
+    const Hash&              hash,
+    const uint64_t           matchBits,
+    const uint8_t            hashThreadId,
+    std::vector<HashRecord>& hits,
+    std::vector<ExtendTableInterval>& /*extendTableIntervals*/,
+    const bool trace) const
 {
   //bool fullBucket = true;
   auto hashRecord = bucket.cbegin();

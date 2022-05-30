@@ -46,7 +46,7 @@ class ScopeEndCall : public ScopeEndCallBase {
 public:
   explicit ScopeEndCall(FuncT f) : f_(f) {}
 
-  ~ScopeEndCall() override { f_(std::uncaught_exception()); }
+  ~ScopeEndCall() override { f_(std::uncaught_exceptions()); }
 };
 
 /**
@@ -63,9 +63,10 @@ const detail::ScopeEndCall<FuncT> makeScopeEndCallHolder(FuncT f)
 /**
  * \brief ensures f is called during the stack unwind of the scope following the macro
  */
-#define ASYNC_BLOCK_WITH_CLEANUP(f)                                                                        \
-  if (const rnaq::common::detail::ScopeEndCallBase& b = rnaq::common::detail::makeScopeEndCallHolder(f)) { \
-    (void)b;                                                                                               \
+#define ASYNC_BLOCK_WITH_CLEANUP(f)                              \
+  if (const dragenos::common::detail::ScopeEndCallBase& b =      \
+          dragenos::common::detail::makeScopeEndCallHolder(f)) { \
+    (void)b;                                                     \
   } else
 
 //-------------------------------------------------------------------------------rpetrovski
@@ -82,6 +83,10 @@ public:
   explicit unlock_guard(Lock& m_) : l(m_) { l.unlock(); }
 
   ~unlock_guard() { l.lock(); }
+};
+
+struct ThreadPoolException : public std::logic_error {
+  using std::logic_error::logic_error;
 };
 
 template <bool crashOnExceptions>
@@ -115,6 +120,7 @@ private:
   std::size_t threadsReady_ = 0;
 
   std::exception_ptr firstThreadException_;
+  bool               aThreadFailed_ = false;
 
   typedef std::vector<std::thread> ThreadVector;
   typedef ThreadVector::size_type  size_type;
@@ -176,6 +182,9 @@ public:
   template <typename F>
   void execute(lock_type& lock, F func, const unsigned threads)
   {
+    if (aThreadFailed_) {
+      throw ThreadPoolException("Attempt to execute a failed threadpool");
+    }
     if (firstThreadException_) {
       //           std::cerr << "[" << std::this_thread::get_id() << "]\tWARNING: execute called when an exception is pending " << std::endl;
       std::rethrow_exception(firstThreadException_);
@@ -218,11 +227,27 @@ public:
     }
   }
 
+  /*
+   * \return always false or throws an exception
+   */
+  bool checkThreadFailed() const
+  {
+    if (aThreadFailed_) {
+      throw ThreadPoolException("Another thread failed in the threadpool");
+    }
+
+    return false;
+  }
+
   void waitForChange(lock_type& lock)
   {
     if (firstThreadException_) {
       //       std::cerr << "[" << std::this_thread::get_id() << "]\tWARNING: waitForChange called when an exception is pending " << std::endl;
       std::rethrow_exception(firstThreadException_);
+    }
+
+    if (aThreadFailed_) {
+      throw ThreadPoolException("Attempt to wait in a failed threadpool");
     }
 
     if (!terminateRequested_) {
@@ -232,6 +257,10 @@ public:
     if (firstThreadException_) {
       //       std::cerr << "[" << std::this_thread::get_id() << "]\tWARNING: rethrowing a thread exception " << std::endl;
       std::rethrow_exception(firstThreadException_);
+    }
+
+    if (aThreadFailed_) {
+      throw ThreadPoolException("Another thread failed while waiting for state change");
     }
   }
 
@@ -313,6 +342,7 @@ private:
     try {
       executor->execute(lock);
     } catch (...) {
+      aThreadFailed_      = true;
       executor->complete_ = true;
       --executor->threadsIn_;
       stateChangedCondition_.notify_all();

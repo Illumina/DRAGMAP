@@ -82,7 +82,8 @@ TEST(ReferenceSequence, getBase)
   ASSERT_EQ(4, referenceSequence.getBase(2));
   ASSERT_EQ(8, referenceSequence.getBase(3));
   ASSERT_EQ(8, referenceSequence.getBase(bases.size() - 1));
-  ASSERT_THROW(referenceSequence.getBase(bases.size()), dragenos::common::InvalidParameterException);
+  // check in getBase disabled due to performance reasons
+  //ASSERT_THROW(referenceSequence.getBase(bases.size()), dragenos::common::InvalidParameterException);
 }
 
 TEST(ReferenceSequence, getSequenceCopy) {}

@@ -60,13 +60,6 @@ typedef struct __declspec(intrin_type) __declspec(align(16)) vint128_t {
 #define TSTRING(s) s
 // nothing to set here. users do it with ulimit
 #define SET_MAX_FILES
-#define DRAGEN_OS_TRACE_STAT(prefix)                                                                       \
-  {                                                                                                        \
-    std::string   statm;                                                                                   \
-    std::ifstream ifs("/proc/self/stat");                                                                  \
-    std::getline(ifs, statm);                                                                              \
-    DRAGEN_OS_THREAD_CERR << "STAT: " << prefix << " " << dragenos::common::parseStat(statm) << std::endl; \
-  }
 
 // vectorizing 128 bit unsigned integer
 typedef unsigned long long vint128_t __attribute__((__vector_size__(16)));

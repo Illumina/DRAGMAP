@@ -64,7 +64,7 @@ protected:
   typedef boost::shared_ptr<boost::program_options::option_description> OptionDescriptionPtr;
   typedef std::vector<OptionDescriptionPtr>                             OptionDescriptionPtrs;
   std::string helpDefaults(const OptionDescriptionPtrs& options) const;
-  std::string help(const OptionDescriptionPtrs& options, const bool markdown) const;
+  std::string help(const OptionDescriptionPtrs& options) const;
 
 private:
   virtual std::string usagePrefix() const = 0;
@@ -101,6 +101,56 @@ void run(void (*callback)(const O&), int argc, char* argv[])
       //            std::clog << options.usage() << std::endl;
       exit(1);
     }
+  } catch (const dragenos::common::ExceptionData& exception) {
+    std::clog << "Error: " << exception.getContext() << ": " << exception.getMessage() << std::endl;
+    exit(1);
+  } catch (const boost::exception& e) {
+    std::clog << "Error: boost::exception: " << boost::diagnostic_information(e) << std::endl;
+    exit(2);
+  } catch (const std::exception& e) {
+    std::clog << e.what() << std::endl;
+    exit(3);
+  }
+}
+
+template <class O>
+void parse_options(int argc, char* argv[], O& options)
+{
+  // fix for Failed to parse the options: locale::facet::_S_create_c_locale name not valid
+  setenv("LC_ALL", "C", 0);
+  try {
+    const typename O::Action action = options.parse(argc, argv);
+    if (O::RUN == action) {
+      return;
+    } else if (O::HELP == action) {
+      std::cout << options.usage() << std::endl;
+      exit(0);
+    } else if (O::VERSION == action) {
+      std::cout << Version::string() << std::endl;
+      exit(0);
+    } else {
+      //            std::clog << options.usage() << std::endl;
+      exit(1);
+    }
+  } catch (const dragenos::common::ExceptionData& exception) {
+    std::clog << "Error: " << exception.getContext() << ": " << exception.getMessage() << std::endl;
+    exit(1);
+  } catch (const boost::exception& e) {
+    std::clog << "Error: boost::exception: " << boost::diagnostic_information(e) << std::endl;
+    exit(2);
+  } catch (const std::exception& e) {
+    std::clog << e.what() << std::endl;
+    exit(3);
+  }
+}
+
+template <class O>
+void run(void (*callback)(const O&), const O& options)
+{
+  // fix for Failed to parse the options: locale::facet::_S_create_c_locale name not valid
+  setenv("LC_ALL", "C", 0);
+  try {
+    callback(options);
   } catch (const dragenos::common::ExceptionData& exception) {
     std::clog << "Error: " << exception.getContext() << ": " << exception.getMessage() << std::endl;
     exit(1);

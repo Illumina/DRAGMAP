@@ -4,6 +4,7 @@
 #include "gtest/gtest.h"
 
 #include "align/Alignments.hpp"
+#include "align/SmithWaterman.hpp"
 
 TEST(Alignments, OneBaseDeletion)
 {

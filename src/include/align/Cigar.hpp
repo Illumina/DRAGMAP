@@ -22,6 +22,8 @@
 #include <boost/format.hpp>
 #include <boost/range/iterator_range.hpp>
 
+#include "common/Debug.hpp"
+
 namespace dragenos {
 namespace align {
 
@@ -54,8 +56,9 @@ public:
     bool operator!=(const Operation& that) const { return that.first != first || that.second != second; }
     bool operator==(const Operation& that) const { return that.first == first && that.second == second; }
   };
+  typedef std::vector<Operation> Operations;
 
-  const Operation* const getOperations() const { return operations_.data(); }
+  const Operation* getOperations() const { return operations_.data(); }
   /// set the cigar operations from the individual operations in operations sequence string
   uint32_t setOperationSequence(const std::string& operationsSequence, int softClipStart = 0);
   unsigned getNumberOfOperations() const { return operations_.size(); }
@@ -94,7 +97,7 @@ public:
   bool empty() const { return operations_.empty(); }
 
 private:
-  std::vector<Operation> operations_;
+  Operations operations_;
 };
 
 class SerializedCigar {

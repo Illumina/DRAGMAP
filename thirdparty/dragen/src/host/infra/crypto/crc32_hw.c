@@ -32,30 +32,17 @@
    1.0  10 Feb 2013  First version
    1.1   1 Aug 2013  Correct comments on why three crc instructions in parallel
 */
-#include "common/Crc32Hw.hpp"
 
 #include <pthread.h>
-//#include <stdint.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-/* ============ end of #include directives ============ */
-//#include "edico_memdebug.h"
-
-namespace dragenos {
-namespace common {
-
 /* CRC-32C (iSCSI) polynomial in reversed bit order. */
 #define POLY 0x82f63b78
 
-#if defined(__x86_64)
-#define _TARGET_X86_ 1
-#endif
-
-// this should probably test for the __SSE2__ macro instead
 #if !defined(_TARGET_X86_)
-#error "Only x85_64 architecture supported"
 #include "fast_nonvector_crc32c.h"
 #endif
 
@@ -94,7 +81,7 @@ static void crc32c_init_sw(void)
 /* Table-driven software version as a fall-back.  This is about 15 times slower
    than using the hardware instructions.  This assumes little-endian integers,
    as is the case on Intel processors that the assembler code here is for. */
-static uint32_t crc32c_sw(uint32_t crci, const void* buf, std::size_t len)
+static uint32_t crc32c_sw(uint32_t crci, const void* buf, size_t len)
 {
   const unsigned char* next = (const unsigned char*)buf;
   uint64_t             crc;
@@ -158,7 +145,7 @@ static inline void gf2_matrix_square(uint32_t* square, uint32_t* mat)
    largest power of two less than len.  The result for len == 0 is the same as
    for len == 1.  A version of this routine could be easily written for any
    len, but that is not needed for this application. */
-static void crc32c_zeros_op(uint32_t* even, std::size_t len)
+static void crc32c_zeros_op(uint32_t* even, size_t len)
 {
   int      n;
   uint32_t row;
@@ -195,7 +182,7 @@ static void crc32c_zeros_op(uint32_t* even, std::size_t len)
 
 /* Take a length and build four lookup tables for applying the zeros operator
    for that length, byte-by-byte on the operand. */
-static void crc32c_zeros(uint32_t zeros[][256], std::size_t len)
+static void crc32c_zeros(uint32_t zeros[][256], size_t len)
 {
   uint32_t n;
   uint32_t op[32];
@@ -239,7 +226,7 @@ static void crc32c_init_hw(void)
 }
 
 /* Compute CRC-32C using the Intel hardware instruction. */
-static uint32_t crc32c_hw_impl(uint32_t crc, const void* buf, std::size_t len)
+static uint32_t crc32c_hw_impl(uint32_t crc, const void* buf, size_t len)
 {
   const unsigned char* next = (const unsigned char*)buf;
   const unsigned char* end;
@@ -367,7 +354,7 @@ static void init_sse42(void)
 }
 /* Read the state of sse42 from hw only once
  * Return a variable on subsequent calls */
-bool machine_has_sse42()
+int machine_has_sse42()
 {
   pthread_once(&sse42_rd_hw_once, init_sse42);
   return has_sse42;
@@ -375,7 +362,7 @@ bool machine_has_sse42()
 
 #if !defined(_TARGET_X86_)
 /* Compute CRC32C using optimized SW implementation */
-static uint32_t crc32c_sw_impl(uint32_t crc, const void* buf, std::size_t len)
+static uint32_t crc32c_sw_impl(uint32_t crc, const void* buf, size_t len)
 {
   uint64_t             crc0;
   const unsigned char* next = (const unsigned char*)buf;
@@ -412,7 +399,7 @@ static uint32_t crc32c_sw_impl(uint32_t crc, const void* buf, std::size_t len)
 
 /* Compute a CRC-32C.  If the crc32 instruction is available, use the hardware
    version.  Otherwise, use the software version. */
-uint32_t crc32c_hw(uint32_t crc, const void* buf, std::size_t len)
+uint32_t crc32c_hw(uint32_t crc, const void* buf, size_t len)
 {
 #if defined(_TARGET_X86_)
   return crc32c_hw_impl(crc, buf, len);
@@ -420,9 +407,6 @@ uint32_t crc32c_hw(uint32_t crc, const void* buf, std::size_t len)
   return crc32c_sw_impl(crc, buf, len);
 #endif
 }
-
-}  // namespace common
-}  // namespace dragenos
 
 #if 0
 

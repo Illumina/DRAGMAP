@@ -25,9 +25,10 @@
 #include "mapping_stats.hpp"
 
 #include "align/Aligner.hpp"
-#include "align/Sam.hpp"
+#include "align/SinglePicker.hpp"
 #include "fastq/Tokenizer.hpp"
 #include "io/Fastq2ReadTransformer.hpp"
+#include "sam/SamGenerator.hpp"
 
 #include "workflow/DualFastq2SamWorkflow.hpp"
 
@@ -195,6 +196,202 @@ void DualFastq2SamWorkflow::parseDualFastq(
   }
 }
 
+void DualFastq2SamWorkflow::alignDualFastqBlock(
+    common::ThreadPool::lock_type&         lock,
+    std::size_t&                           cpuThreads,
+    std::size_t&                           threadID,
+    std::vector<ReadGroupAlignmentCounts>& mappingMetricsVector,
+    align::InsertSizeDistribution&         insertSizeDistribution,
+    fastq::FastqNRecordReader&             r1Reader,
+    fastq::FastqNRecordReader&             r2Reader,
+    std::ostream&                          os,
+    const align::SinglePicker&             singlePicker,
+    const align::SimilarityScores&         similarity,
+    const sam::SamGenerator&               sam)
+{
+  align::PairBuilder pairBuilder(
+      similarity,
+      options_.alnMinScore_,
+      options_.alignerUnpairedPen_,
+      options_.alignerXsPairPen_,
+      options_.alignerSecAligns_,
+      options_.alignerSecScoreDelta_,
+      options_.alignerSecPhredDelta_,
+      options_.alignerSecAlignsHard_,
+      options_.alignerMapqMinLen_);
+
+  // aligner is not stateless, make sure each thread uses its own.
+  align::Aligner aligner(
+      refSeq_,
+      htConfig_,
+      hashtable_,
+      options_.mapOnly_,
+      options_.swAll_,
+      similarity,
+      options_.gapInitPenalty_,
+      options_.gapExtendPenalty_,
+      options_.unclipScore_,
+      options_.alnMinScore_,
+      options_.alignerMapqMinLen_,
+      options_.alignerUnpairedPen_,
+      options_.mapperFilterLenRatio_,
+      !options_.methodSmithWaterman_.compare("mengyao"));
+
+  std::vector<char> r1Block;
+  // arbitrary preallocation to avoid unnecessary copy/paste
+  r1Block.reserve(RECORDS_AT_A_TIME_ * 1024);
+  std::vector<char> r2Block;
+  r2Block.reserve(RECORDS_AT_A_TIME_ * 1024);
+
+  // records in output format
+  std::vector<char> tmpBuffer;
+  tmpBuffer.reserve(RECORDS_AT_A_TIME_ * 1024);
+  boost::iostreams::filtering_ostream ostrm;
+  ostrm.push(boost::iostreams::back_insert_device<std::vector<char>>(tmpBuffer));
+  // minimum data required for insert size calculation
+  std::vector<char> insBuffer;
+  insBuffer.reserve(RECORDS_AT_A_TIME_ * 1024);
+
+  ReadGroupAlignmentCounts& mappingMetricsLocal = mappingMetricsVector[threadID];
+  threadID++;
+
+  do {
+    const int ourBlock = blockToStart_++;
+
+    // keep track of which read is reading
+    int r1Records = -1;
+    int r2Records = -1;
+    // no more than 2 threads are allowed in
+    common::CPU_THREADS().execute(
+        lock,
+        [&](common::ThreadPool::lock_type& lock) {
+          readBlockThread(lock, ourBlock, r1Records, r1Block, r1Reader, r2Records, r2Block, r2Reader);
+        },
+        2);
+
+    //      readBlockThread(lock, ourBlock, r1Records, r1Block, r1Reader, r2Records, r2Block, r2Reader);
+    // if our block, go see if we've read something
+    if (blockToRead_ == ourBlock) {
+      // could be -1 or 0 if by the time we decide to read our block we run out of data
+      if (0 < r1Records) {
+        if (r1Records != r2Records) {
+          throw std::logic_error(std::string("fastq files have different number of records "));
+        }
+
+        // both reads completed, let others move on
+        ++blockToRead_;
+        common::CPU_THREADS().notify_all();
+
+        while (blockToGetInsertSizes_ != ourBlock) {
+          common::CPU_THREADS().waitForChange(lock);
+        }
+
+        align::InsertSizeParameters insertSizeParameters;
+        {
+          common::unlock_guard<common::ThreadPool::lock_type> unlock(lock);
+          boost::iostreams::filtering_istream                 inputR1;
+          inputR1.push(boost::iostreams::basic_array_source<char>{&r1Block.front(),
+                                                                  &r1Block.front() + r1Block.size()});
+          boost::iostreams::filtering_istream inputR2;
+          inputR2.push(boost::iostreams::basic_array_source<char>{&r2Block.front(),
+                                                                  &r2Block.front() + r2Block.size()});
+          insertSizeParameters = requestInsertSizeInfo(insertSizeDistribution, inputR1, inputR2);
+        }
+        assert(blockToGetInsertSizes_ == ourBlock);
+        ++blockToGetInsertSizes_;
+        common::CPU_THREADS().notify_all();
+
+        while (options_.mapperNumThreads_ == int(cpuThreads) || blockToAlign_ != ourBlock) {
+          common::CPU_THREADS().waitForChange(lock);
+        }
+        ++cpuThreads;
+        ++blockToAlign_;
+        common::CPU_THREADS().notify_all();
+        {
+          common::unlock_guard<common::ThreadPool::lock_type> unlock(lock);
+          boost::iostreams::filtering_istream                 inputR1;
+          inputR1.push(boost::iostreams::basic_array_source<char>{&r1Block.front(),
+                                                                  &r1Block.front() + r1Block.size()});
+          boost::iostreams::filtering_istream inputR2;
+          inputR2.push(boost::iostreams::basic_array_source<char>{&r2Block.front(),
+                                                                  &r2Block.front() + r2Block.size()});
+          insBuffer.clear();
+          tmpBuffer.clear();
+
+          alignDualFastq(
+              insertSizeParameters,
+              inputR1,
+              inputR2,
+              aligner,
+              singlePicker,
+              pairBuilder,
+              [&](const sequences::Read& r, const align::Alignment& a) {
+                sam.generateRecord(ostrm, r, a, options_.rgid_) << "\n";
+
+                const auto before = insBuffer.size();
+                insBuffer.resize(before + sequences::SerializedRead::getByteSize(r));
+                const auto before2 = insBuffer.size();
+                insBuffer.resize(before2 + align::SerializedAlignment::getByteSize(a));
+
+                // resize can invalidate references...
+                sequences::SerializedRead& sr =
+                    *reinterpret_cast<sequences::SerializedRead*>(&insBuffer.front() + before);
+                sr << r;
+
+                align::SerializedAlignment& sa =
+                    *reinterpret_cast<align::SerializedAlignment*>(&insBuffer.front() + before2);
+                sa << a;
+
+                mappingMetricsLocal.addRecord(sa, sr);
+              });
+          ostrm.flush();
+        }
+
+        --cpuThreads;
+        common::CPU_THREADS().notify_all();
+
+        if (options_.preserveMapAlignOrder_) {
+          while (blockToStore_ != ourBlock) {
+            common::CPU_THREADS().waitForChange(lock);
+          }
+        } else {
+          while (-1 != blockToStore_) {
+            common::CPU_THREADS().waitForChange(lock);
+          }
+          blockToStore_ = ourBlock;
+        }
+
+        {
+          common::unlock_guard<common::ThreadPool::lock_type> unlock(lock);
+          for (auto it = insBuffer.begin(); insBuffer.end() != it;) {
+            char*                            p     = &*it;
+            const sequences::SerializedRead* pRead = reinterpret_cast<const sequences::SerializedRead*>(p);
+            it += pRead->getByteSize();
+            p = &*it;
+            const align::SerializedAlignment* pAlignment =
+                reinterpret_cast<const align::SerializedAlignment*>(p);
+            it += pAlignment->getByteSize();
+            // sam.generateRecord(os, *pRead, *pAlignment, options_.rgid_) << "\n";
+            insertSizeDistribution.add(*pAlignment, *pRead);
+          }
+          if (!os.write(&tmpBuffer.front(), tmpBuffer.size())) {
+            throw std::logic_error(std::string("Error writing output stream. Error: ") + strerror(errno));
+          }
+        }
+        assert(blockToStore_ == ourBlock);
+        if (options_.preserveMapAlignOrder_) {
+          ++blockToStore_;
+        } else {
+          blockToStore_ = -1;
+        }
+        common::CPU_THREADS().notify_all();
+      }
+    }
+    // else we're a thread that waited to read its block until it learned that there will be no more
+    // input data. just quietly exit
+  } while (!common::CPU_THREADS().checkThreadFailed() && !r1Eof_ && !r2Eof_);
+}
+
 void DualFastq2SamWorkflow::parseDualFastq(
     std::istream& r1Stream,
     std::istream& r2Stream,
@@ -249,7 +446,7 @@ void DualFastq2SamWorkflow::parseDualFastq(
   fastq::FastqNRecordReader r1Reader(r1Stream);
   fastq::FastqNRecordReader r2Reader(r2Stream);
 
-  const align::Sam sam(referenceDir_.getHashtableConfig());
+  const sam::SamGenerator sam(htConfig_);
 
   std::size_t cpuThreads = 0;
   std::size_t threadID   = 0;
@@ -260,194 +457,23 @@ void DualFastq2SamWorkflow::parseDualFastq(
   common::CPU_THREADS(poolThreadCount)
       .execute(
           [&](common::ThreadPool::lock_type& lock) {
-            align::PairBuilder pairBuilder(
+            alignDualFastqBlock(
+                lock,
+                cpuThreads,
+                threadID,
+                mappingMetricsVector,
+                insertSizeDistribution,
+                r1Reader,
+                r2Reader,
+                os,
+                singlePicker,
                 similarity,
-                options_.alnMinScore_,
-                options_.alignerUnpairedPen_,
-                options_.alignerXsPairPen_,
-                options_.alignerSecAligns_,
-                options_.alignerSecScoreDelta_,
-                options_.alignerSecPhredDelta_,
-                options_.alignerSecAlignsHard_,
-                options_.alignerMapqMinLen_);
-
-            // aligner is not stateless, make sure each thread uses its own.
-            align::Aligner aligner(
-                referenceDir_,
-                hashtable_,
-                options_.mapOnly_,
-                options_.swAll_,
-                similarity,
-                options_.gapInitPenalty_,
-                options_.gapExtendPenalty_,
-                options_.unclipScore_,
-                options_.alnMinScore_,
-                options_.alignerMapqMinLen_,
-                options_.alignerUnpairedPen_,
-                options_.mapperFilterLenRatio_,
-                !options_.methodSmithWaterman_.compare("mengyao"));
-
-            std::vector<char> r1Block;
-            // arbitrary preallocation to avoid unnecessary copy/paste
-            r1Block.reserve(RECORDS_AT_A_TIME_ * 1024);
-            std::vector<char> r2Block;
-            r2Block.reserve(RECORDS_AT_A_TIME_ * 1024);
-
-            // records in output format
-            std::vector<char> tmpBuffer;
-            tmpBuffer.reserve(RECORDS_AT_A_TIME_ * 1024);
-            boost::iostreams::filtering_ostream ostrm;
-            ostrm.push(boost::iostreams::back_insert_device<std::vector<char>>(tmpBuffer));
-            // minimum data required for insert size calculation
-            std::vector<char> insBuffer;
-            insBuffer.reserve(RECORDS_AT_A_TIME_ * 1024);
-
-            ReadGroupAlignmentCounts& mappingMetricsLocal = mappingMetricsVector[threadID];
-            threadID++;
-
-            do {
-              const int ourBlock = blockToStart_++;
-
-              // keep track of which read is reading
-              int r1Records = -1;
-              int r2Records = -1;
-              // no more than 2 threads are allowed in
-              common::CPU_THREADS().execute(
-                  lock,
-                  [&](common::ThreadPool::lock_type& lock) {
-                    readBlockThread(
-                        lock, ourBlock, r1Records, r1Block, r1Reader, r2Records, r2Block, r2Reader);
-                  },
-                  2);
-
-              //      readBlockThread(lock, ourBlock, r1Records, r1Block, r1Reader, r2Records, r2Block, r2Reader);
-              // if our block, go see if we've read something
-              if (blockToRead_ == ourBlock) {
-                // could be -1 or 0 if by the time we decide to read our block we run out of data
-                if (0 < r1Records) {
-                  if (r1Records != r2Records) {
-                    throw std::logic_error(std::string("fastq files have different number of records "));
-                  }
-
-                  // both reads completed, let others move on
-                  ++blockToRead_;
-                  common::CPU_THREADS().notify_all();
-
-                  while (blockToGetInsertSizes_ != ourBlock) {
-                    common::CPU_THREADS().waitForChange(lock);
-                  }
-
-                  align::InsertSizeParameters insertSizeParameters;
-                  {
-                    common::unlock_guard<common::ThreadPool::lock_type> unlock(lock);
-                    boost::iostreams::filtering_istream                 inputR1;
-                    inputR1.push(boost::iostreams::basic_array_source<char>{
-                        &r1Block.front(), &r1Block.front() + r1Block.size()});
-                    boost::iostreams::filtering_istream inputR2;
-                    inputR2.push(boost::iostreams::basic_array_source<char>{
-                        &r2Block.front(), &r2Block.front() + r2Block.size()});
-                    insertSizeParameters = requestInsertSizeInfo(insertSizeDistribution, inputR1, inputR2);
-                  }
-                  assert(blockToGetInsertSizes_ == ourBlock);
-                  ++blockToGetInsertSizes_;
-                  common::CPU_THREADS().notify_all();
-
-                  while (options_.mapperNumThreads_ == cpuThreads || blockToAlign_ != ourBlock) {
-                    common::CPU_THREADS().waitForChange(lock);
-                  }
-                  ++cpuThreads;
-                  ++blockToAlign_;
-                  common::CPU_THREADS().notify_all();
-                  {
-                    common::unlock_guard<common::ThreadPool::lock_type> unlock(lock);
-                    boost::iostreams::filtering_istream                 inputR1;
-                    inputR1.push(boost::iostreams::basic_array_source<char>{
-                        &r1Block.front(), &r1Block.front() + r1Block.size()});
-                    boost::iostreams::filtering_istream inputR2;
-                    inputR2.push(boost::iostreams::basic_array_source<char>{
-                        &r2Block.front(), &r2Block.front() + r2Block.size()});
-                    insBuffer.clear();
-                    tmpBuffer.clear();
-
-                    alignDualFastq(
-                        insertSizeParameters,
-                        inputR1,
-                        inputR2,
-                        aligner,
-                        singlePicker,
-                        pairBuilder,
-                        [&](const sequences::Read& r, const align::Alignment& a) {
-                          sam.generateRecord(ostrm, r, a, options_.rgid_) << "\n";
-
-                          const auto before = insBuffer.size();
-                          insBuffer.resize(before + sequences::SerializedRead::getByteSize(r));
-                          const auto before2 = insBuffer.size();
-                          insBuffer.resize(before2 + align::SerializedAlignment::getByteSize(a));
-
-                          // resize can invalidate references...
-                          sequences::SerializedRead& sr =
-                              *reinterpret_cast<sequences::SerializedRead*>(&insBuffer.front() + before);
-                          sr << r;
-
-                          align::SerializedAlignment& sa =
-                              *reinterpret_cast<align::SerializedAlignment*>(&insBuffer.front() + before2);
-                          sa << a;
-
-                          mappingMetricsLocal.addRecord(sa, sr);
-                        });
-                    ostrm.flush();
-                  }
-
-                  --cpuThreads;
-                  common::CPU_THREADS().notify_all();
-
-                  if (options_.preserveMapAlignOrder_) {
-                    while (blockToStore_ != ourBlock) {
-                      common::CPU_THREADS().waitForChange(lock);
-                    }
-                  } else {
-                    while (-1 != blockToStore_) {
-                      common::CPU_THREADS().waitForChange(lock);
-                    }
-                    blockToStore_ = ourBlock;
-                  }
-
-                  {
-                    common::unlock_guard<common::ThreadPool::lock_type> unlock(lock);
-                    for (auto it = insBuffer.begin(); insBuffer.end() != it;) {
-                      char*                            p = &*it;
-                      const sequences::SerializedRead* pRead =
-                          reinterpret_cast<const sequences::SerializedRead*>(p);
-                      it += pRead->getByteSize();
-                      p = &*it;
-                      const align::SerializedAlignment* pAlignment =
-                          reinterpret_cast<const align::SerializedAlignment*>(p);
-                      it += pAlignment->getByteSize();
-                      // sam.generateRecord(os, *pRead, *pAlignment, options_.rgid_) << "\n";
-                      insertSizeDistribution.add(*pAlignment, *pRead);
-                    }
-                    if (!os.write(&tmpBuffer.front(), tmpBuffer.size())) {
-                      throw std::logic_error(
-                          std::string("Error writing output stream. Error: ") + strerror(errno));
-                    }
-                  }
-                  assert(blockToStore_ == ourBlock);
-                  if (options_.preserveMapAlignOrder_) {
-                    ++blockToStore_;
-                  } else {
-                    blockToStore_ = -1;
-                  }
-                  common::CPU_THREADS().notify_all();
-                }
-              }
-              // else we're a thread that waited to read its block until it learned that there will be no more
-              // input data. just quietly exit
-            } while (!r1Eof_ && !r2Eof_);
+                sam);
           },
           options_.mapperNumThreads_);
 
   // aggregate and print mapping metrics
-  for (int ii = 0; ii < mappingMetricsVector.size(); ii++) {
+  for (std::size_t ii = 0; ii < mappingMetricsVector.size(); ii++) {
     mappingMetricsGlobal.add(mappingMetricsVector[ii]);
   }
 

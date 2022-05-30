@@ -22,7 +22,7 @@
 namespace dragenos {
 namespace align {
 
-std::pair<int64_t, int64_t> calculateRefStartEnd(const sequences::Read& read, const map::SeedChain& chain);
+std::pair<uint64_t, uint64_t> calculateRefStartEnd(const sequences::Read& read, const map::SeedChain& chain);
 
 }  // namespace align
 }  // namespace dragenos
