@@ -83,6 +83,7 @@ public:
   uint32_t alignerMapqMax_     = 60;  // Aligner.mapq-max
   uint32_t alignerUnpairedPen_ = 80;  // Aligner.unpaired-pen
   int      alignerXsPairPen_   = 25;  // Aligner.xs-pair-penalty
+  int      alignerSampleMapq0_ = 1;   // Aligner.sample-map0
 
   int  alignerSecAligns_     = 0;      // Aligner.sec-aligns
   int  alignerSecScoreDelta_ = 0;      // Aligner.sec-score-delta

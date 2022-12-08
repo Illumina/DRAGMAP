@@ -257,6 +257,8 @@ bool AlignmentRescue::scan(
         rescuedChain.addSeedPosition(map::SeedPosition(seed, referencePosition, 0), false);
       }
       rescuedChain.setPerfect(not conflict);
+      rescuedChain.setExtra(anchoredChain.isExtra());
+      rescuedChain.setRandomSamplesOnly(anchoredChain.hasOnlyRandomSamples());
       //if (log) std::cerr << "scanning... succeeded" << std::endl;
       DRAGEN_RESCUE_LOG << "RESCUE: "
                         << "first_seed_pos=" << rescuedChain.firstReadBase()

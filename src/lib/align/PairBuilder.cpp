@@ -345,8 +345,12 @@ void PairBuilder::updateEndMapq(
 
     const MapqType mapq_prod_pen = pe_mapq - (sub_mapq_pen_v >> 7);
 
-    const MapqType mapq =
-        (INVALID_SCORE != xs_score_diff) ? std::min(xs_heur_mapq, mapq_prod_pen) : mapq_prod_pen;
+    const bool mapq0 = (aln_cfg_sample_mapq0_ >= 1 && best->hasOnlyRandomSamples()) ||
+                       (aln_cfg_sample_mapq0_ >= 2 && best->isExtra());
+    const MapqType mapq = mapq0 ? 0
+                                : (INVALID_SCORE != xs_score_diff)
+                                      ? std::min(std::max(0, xs_heur_mapq), mapq_prod_pen)
+                                      : mapq_prod_pen;
 
 #ifdef TRACE_SCORING
     std::cerr << "[SCORING]\t"

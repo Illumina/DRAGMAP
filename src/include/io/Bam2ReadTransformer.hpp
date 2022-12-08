@@ -45,7 +45,7 @@ public:
     const auto name    = bra.getName(qnameSuffixDelim_);
     const auto bases   = bra.getBases();
     const auto qscores = bra.getQscores();
-    tmpName_.assign(name.first, name.second - 1);
+    tmpName_.assign(name.first, name.second);
     tmpBases_.clear();
     if (bra.reverse()) {
       for (auto it = bases.first; bases.second != it; ++it) {

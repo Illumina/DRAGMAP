@@ -44,7 +44,7 @@ TEST(PairBuilder, updateMapq)
   const short                             match    = 1;
   const short                             mismatch = -1;
   const dragenos::align::SimilarityScores similarityScores(match, mismatch);
-  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50);
+  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50, 0);
 
   const unsigned char reference[] =
       "TCCATCGAGATGGACGCCGTTGGCGCTCTCCGTCTTTCTCCATTGCGTCGTGGCCTTGCTATTGACTCTACTGTAGACATTTTTACTTTTTATGTCCCTCTTATG";
@@ -135,7 +135,7 @@ TEST(PairBuilder, pickBest1)
   const short                             mismatch = -1;
   const dragenos::align::SimilarityScores similarityScores(match, mismatch);
   const ReferenceDirDummy                 referenceDir;
-  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50);
+  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50, 0);
 
   char reference[] =
       "TCCATCGAGATGGACGCCGTTGGCGCTCTCCGTCTTTCTCCATTGCGTCGTGGCCTTGCTATTGACTCTACTGTAGACATTTTTACTTTTTATGTCCCTCTTATG";
@@ -232,7 +232,7 @@ TEST(PairBuilder, pickBest2)
   const short                             mismatch = -1;
   const dragenos::align::SimilarityScores similarityScores(match, mismatch);
   const ReferenceDirDummy                 referenceDir;
-  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50);
+  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50, 0);
 
   char reference[] =
       "TCCATCGAGATGGACGCCGTTGGCGCTCTCCGTCTTTCTCCATTGCGTCGTGGCCTTGCTATTGACTCTACTGTAGACATTTTTACTTTTTATGTCCCTCTTATG";
@@ -338,7 +338,7 @@ TEST(PairBuilder, pickBest3)
   const short                             mismatch = -1;
   const dragenos::align::SimilarityScores similarityScores(match, mismatch);
   const ReferenceDirDummy                 referenceDir;
-  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50);
+  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50, 0);
 
   char reference[] =
       "TCCATCGAGATGGACGCCGTTGGCGCTCTCCGTCTTTCTCCATTGCGTCGTGGCCTTGCTATTGACTCTACTGTAGACATTTTTACTTTTTATGTCCCTCTTATG";
@@ -444,7 +444,7 @@ TEST(PairBuilder, pickBest4)
   const short                             mismatch = -1;
   const dragenos::align::SimilarityScores similarityScores(match, mismatch);
   const ReferenceDirDummy                 referenceDir;
-  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50);
+  const align::PairBuilder                pairBuilder(similarityScores, 19, 80, 25, 0, 0, 0, false, 50, 0);
 
   char reference[] =
       "TCCATCGAGATGGACGCCGTTGGCGCTCTCCGTCTTTCTCCATTGCGTCGTGGCCTTGCTATTGACTCTACTGTAGACATTTTTACTTTTTATGTCCCTCTTATG";

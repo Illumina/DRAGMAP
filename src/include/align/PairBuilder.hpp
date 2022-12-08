@@ -45,6 +45,7 @@ class PairBuilder {
   const int               aln_cfg_sec_phred_delta_;
   const bool              aln_cfg_sec_aligns_hard_;
   const int               aln_cfg_mapq_min_len_;
+  const int               aln_cfg_sample_mapq0_;
 
   mutable std::vector<int> reported_;
 
@@ -63,7 +64,8 @@ public:
       const int               aln_cfg_sec_score_delta,
       const int               aln_cfg_sec_phred_delta,
       const bool              aln_cfg_sec_aligns_hard,
-      const int               aln_cfg_mapq_min_len)
+      const int               aln_cfg_mapq_min_len,
+      const int               aln_cfg_sample_mapq0)
     : similarity_(similarity),
       alnMinScore_(alnMinScore),
       aln_cfg_unpaired_pen_(aln_cfg_unpaired_pen),
@@ -72,7 +74,8 @@ public:
       aln_cfg_sec_score_delta_(aln_cfg_sec_score_delta),
       aln_cfg_sec_phred_delta_(aln_cfg_sec_phred_delta),
       aln_cfg_sec_aligns_hard_(aln_cfg_sec_aligns_hard),
-      aln_cfg_mapq_min_len_(aln_cfg_mapq_min_len)
+      aln_cfg_mapq_min_len_(aln_cfg_mapq_min_len),
+      aln_cfg_sample_mapq0_(aln_cfg_sample_mapq0)
   {
   }
 

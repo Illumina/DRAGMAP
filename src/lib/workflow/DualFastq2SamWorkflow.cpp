@@ -218,7 +218,8 @@ void DualFastq2SamWorkflow::alignDualFastqBlock(
       options_.alignerSecScoreDelta_,
       options_.alignerSecPhredDelta_,
       options_.alignerSecAlignsHard_,
-      options_.alignerMapqMinLen_);
+      options_.alignerMapqMinLen_,
+      options_.alignerSampleMapq0_);
 
   // aligner is not stateless, make sure each thread uses its own.
   align::Aligner aligner(
@@ -441,7 +442,8 @@ void DualFastq2SamWorkflow::parseDualFastq(
       options_.alignerSecScoreDelta_,
       options_.alignerSecPhredDelta_,
       options_.alignerSecAlignsHard_,
-      options_.alignerMapqMinLen_);
+      options_.alignerMapqMinLen_,
+      options_.alignerSampleMapq0_);
 
   fastq::FastqNRecordReader r1Reader(r1Stream);
   fastq::FastqNRecordReader r2Reader(r2Stream);

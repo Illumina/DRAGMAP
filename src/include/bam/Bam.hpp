@@ -13,6 +13,7 @@
  **/
 #pragma once
 
+#include <assert.h>
 #include <cstdint>
 
 namespace dragenos {
@@ -92,10 +93,14 @@ public:
   const std::size_t readLength() const { return h_->l_seq; }
 
   const char* nameBegin() const { return h_->read_name; }
-  const char* nameEnd() const { return nameBegin() + h_->l_read_name - 1; }
+  const char* nameEnd() const { return nameBegin() + h_->l_read_name; }
   const Name  getName(const char qnameSuffixDelim) const
   {
-    return Name(nameBegin(), std::find(nameBegin(), nameEnd(), qnameSuffixDelim));
+    assert(nameBegin() != nameEnd());  // unexpected empty name
+    const char* end = nameEnd() - 1;
+    assert(!*end);  // name includes 0 terminator according to specs
+    Name ret(nameBegin(), std::find(nameBegin(), end, qnameSuffixDelim));
+    return ret;
   }
 
   const char* cigarBegin() const { return nameEnd(); }

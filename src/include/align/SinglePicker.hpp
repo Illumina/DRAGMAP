@@ -42,6 +42,7 @@ class SinglePicker {
   const int               aln_cfg_sec_phred_delta_;
   const bool              aln_cfg_sec_aligns_hard_;
   const int               aln_cfg_mapq_min_len_;
+  const int               aln_cfg_sample_mapq0_;
 
 public:
   typedef sequences::Read   Read;
@@ -56,7 +57,8 @@ public:
       const int               aln_cfg_sec_score_delta,
       const int               aln_cfg_sec_phred_delta,
       const bool              aln_cfg_sec_aligns_hard,
-      const int               aln_cfg_mapq_min_len)
+      const int               aln_cfg_mapq_min_len,
+      const int               aln_cfg_sample_mapq0)
     : similarity_(similarity),
       alnMinScore_(alnMinScore),
       suppMinScoreAdj_(suppMinScoreAdj),
@@ -64,7 +66,8 @@ public:
       aln_cfg_sec_score_delta_(aln_cfg_sec_score_delta),
       aln_cfg_sec_phred_delta_(aln_cfg_sec_phred_delta),
       aln_cfg_sec_aligns_hard_(aln_cfg_sec_aligns_hard),
-      aln_cfg_mapq_min_len_(aln_cfg_mapq_min_len)
+      aln_cfg_mapq_min_len_(aln_cfg_mapq_min_len),
+      aln_cfg_sample_mapq0_(aln_cfg_sample_mapq0)
   {
   }
 

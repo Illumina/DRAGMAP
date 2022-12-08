@@ -113,7 +113,11 @@ void SinglePicker::updateMapq(const int readLength, Alignments& alignments, Alig
             << "r" << 0 << " a2m_mapq=" << a2m_mapq << " sub_count=" << sub_count
             << " sub_count_log2=" << sub_count_log2 << " sub_mapq_pen_v=" << sub_mapq_pen_v << std::endl;
 #endif  // TRACE_SCORING
-  best->setMapq(a2m_mapq - (sub_mapq_pen_v >> 7));
+  const bool mapq0 = (aln_cfg_sample_mapq0_ >= 1 && best->hasOnlyRandomSamples()) ||
+                     (aln_cfg_sample_mapq0_ >= 2 && best->isExtra());
+  const MapqType mapq = mapq0 ? 0 : a2m_mapq - (sub_mapq_pen_v >> 7);
+
+  best->setMapq(mapq);
   const ScoreType xs = secondBestScore >= alnMinScore_ ? secondBestScore : INVALID_SCORE;
   best->setXs(xs);
 }

@@ -144,6 +144,7 @@ void Aligner::updateIneligibility(
 
 void Aligner::generateUngappedAlignment(const Read& read, map::SeedChain& seedChain, Alignment& alignment)
 {
+  alignment.setChain(seedChain);
   FlagType flags = !read.getPosition() ? Alignment::FIRST_IN_TEMPLATE : Alignment::LAST_IN_TEMPLATE;
   flags |= seedChain.isReverseComplement() ? Alignment::REVERSE_COMPLEMENT : Alignment::NONE;
   flags |= seedChain.isFiltered() ? Alignment::UNMAPPED : Alignment::NONE;
@@ -287,7 +288,7 @@ int Aligner::initializeUngappedAlignmentScores(
   int malus = 0;
 
   Database databaseBestLastToSeqLeft;
-  size_t bestToLastRefStart = referenceOffset + bestLast + 1;
+  size_t   bestToLastRefStart = referenceOffset + bestLast + 1;
   databaseBestLastToSeqLeft.reserve(seqLeft + 1);
   refSeq_.getBases(bestToLastRefStart, bestToLastRefStart + seqLeft, databaseBestLastToSeqLeft);
 
@@ -295,7 +296,7 @@ int Aligner::initializeUngappedAlignmentScores(
   databaseBestLastToSeqLeft.reserve(seqLeft - bestLast + 1);
   refSeq_.getBases(referenceOffset + bestLast + 1, referenceOffset + bestLast + 1 + seqLeft, databaseBestLastToSeqLeft);
   */
-  
+
   for (int i = bestLast + 1; i < seqLeft; ++i) {
     const auto          readBase      = readBases[i];
     const unsigned char referenceBase = databaseBestLastToSeqLeft[i - (bestLast + 1)];
@@ -492,6 +493,8 @@ bool Aligner::rescuePair(
             rescued,
             anchoredIdx)) {
       chainBuilders_[rescuedIdx].addSeedChain(rescuedSeedChain);
+      rescued.setChain(chainBuilders_[rescuedIdx].back());
+
       unpairedAlignments_[rescuedIdx].append(rescued);
       makePair(
           insertSizeParameters,

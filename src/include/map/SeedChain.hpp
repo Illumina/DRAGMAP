@@ -81,6 +81,7 @@ public:
   void setReverseComplement(bool reverseComplement) { reverseComplement_ = reverseComplement; }
   bool isReverseComplement() const { return reverseComplement_; }
   bool hasOnlyRandomSamples() const { return randomSamplesOnly_; }
+  bool setRandomSamplesOnly(bool randomSamplesOnly) { return randomSamplesOnly_ = randomSamplesOnly; }
   /**
    ** \brief check if the chain would accept a seed mapping to the reference with that position and
    *orientation
