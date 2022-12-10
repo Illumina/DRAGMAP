@@ -249,7 +249,7 @@ void setDefaultHashParams(hashTableConfig_t* defConfig, const char* destDir, Has
     free(dir);
   }
 
-  defConfig->hostVersion = (char*)getHostVersion(0);
+  defConfig->hostVersion = (char*)getHostVersion();
 }
 
 //-------------------------------------------------------------------------------swhitmore

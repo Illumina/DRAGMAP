@@ -52,7 +52,7 @@ typename ReferenceDir7::UcharPtr ReferenceDir7::ReadFileIntoBuffer(
   size = file.tellg();
   file.seekg(0, file.beg);
 
-  UcharPtr bufPtr(new uint8_t[size], [this](uint8_t* p) -> void { delete [](p); });
+  UcharPtr bufPtr(new uint8_t[size], [](uint8_t* p) -> void { delete [](p); });
   file.read(reinterpret_cast<char*>(bufPtr.get()), size);
   if (!file) {
     //    THROW(DragenException, "Could not load reference - could not read ", path);
@@ -119,9 +119,9 @@ ReferenceDir7::ReferenceDir7(const boost::filesystem::path& path, bool mmap, boo
     dup2(stdoutori, 1);
 
     hashtableData_ =
-        Uint64Ptr(reinterpret_cast<uint64_t*>(hashbuf), [this](uint64_t* p) -> void { free(p); });
+        Uint64Ptr(reinterpret_cast<uint64_t*>(hashbuf), [](uint64_t* p) -> void { free(p); });
     extendTableData_ =
-        Uint64Ptr(reinterpret_cast<uint64_t*>(extendTableBuf), [this](uint64_t* p) -> void { free(p); });
+        Uint64Ptr(reinterpret_cast<uint64_t*>(extendTableBuf), [](uint64_t* p) -> void { free(p); });
   }
 
   referenceSequencePtr_ = std::unique_ptr<ReferenceSequence>(new ReferenceSequence(
@@ -251,7 +251,7 @@ std::unique_ptr<T, std::function<void(T*)>> ReferenceDir7::readData(
             " error: " + std::strerror(errno)));
   }
   return std::unique_ptr<T, std::function<void(T*)>>(
-      reinterpret_cast<T*>(table), [this](T* p) -> void { free(p); });
+      reinterpret_cast<T*>(table), [](T* p) -> void { free(p); });
 }
 
 size_t ReferenceDir7::getHashtableConfigSize() const

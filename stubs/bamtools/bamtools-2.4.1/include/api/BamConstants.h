@@ -129,15 +129,15 @@ const char BAM_DNA_DEL   = '-';
 const char BAM_DNA_PAD   = '*';
 
 // zlib & BGZF constants
-const char GZIP_ID1   = 31;
-const char GZIP_ID2   = 139;
-const char CM_DEFLATE = 8;
-const char FLG_FEXTRA = 4;
-const char OS_UNKNOWN = 255;
-const char BGZF_XLEN  = 6;
-const char BGZF_ID1   = 66;
-const char BGZF_ID2   = 67;
-const char BGZF_LEN   = 2;
+const uint8_t GZIP_ID1   = 31;
+const uint8_t GZIP_ID2   = 139;
+const uint8_t CM_DEFLATE = 8;
+const uint8_t FLG_FEXTRA = 4;
+const uint8_t OS_UNKNOWN = 255;
+const uint8_t BGZF_XLEN  = 6;
+const uint8_t BGZF_ID1   = 66;
+const uint8_t BGZF_ID2   = 67;
+const uint8_t BGZF_LEN   = 2;
 
 const int8_t   GZIP_WINDOW_BITS          = -15;
 //--START EDICO EDITED

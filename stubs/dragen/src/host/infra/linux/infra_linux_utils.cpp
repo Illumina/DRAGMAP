@@ -39,15 +39,15 @@ namespace infra {
 static std::string g_kernelVersionStr;
 static int         g_kernelVersion;
 
-static constexpr int MKVER(const int major, const int minor, const int patch)
-{
-  return major * 10000 + minor * 100 + patch;
-}
+// static constexpr int MKVER(const int major, const int minor, const int patch)
+// {
+//   return major * 10000 + minor * 100 + patch;
+// }
 
-static constexpr int MKVER(const int major, const int minor)
-{
-  return major * 10000 + minor * 100;
-}
+// static constexpr int MKVER(const int major, const int minor)
+// {
+//   return major * 10000 + minor * 100;
+// }
 
 //------------------------------------------------------------------------alain
 int GetDmiValue(const std::string& label, std::string& value)

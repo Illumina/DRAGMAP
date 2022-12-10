@@ -58,7 +58,7 @@ void SmithWatermanT<C, T, WIDTH, ALIGN, STEERING_DELAY>::buildWavefronts(
 
   // dragen thing...
   setDatabaseSize(std::min(getDatabaseOffset() + 1 + 2 * width + 1, getDatabaseSize()));
-  for (unsigned i = 0; (getDatabaseOffset() < getDatabaseSize() - 1); ++i) {
+  while (getDatabaseOffset() < getDatabaseSize() - 1) {
     moveRight();
   }
 

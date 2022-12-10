@@ -141,8 +141,8 @@ private:
   const map::Mapper         mapper_;
   const SimilarityScores    similarity_;
   const ScoreType           gapInit_;
-  const ScoreType           gapExtend_;
-  const ScoreType           unclipScore_;
+  // const ScoreType           gapExtend_;
+  // const ScoreType           unclipScore_;
   const ScoreType           alnMinScore_;
   const int                 aln_cfg_mapq_min_len_;
   const int                 aln_cfg_unpaired_pen_;

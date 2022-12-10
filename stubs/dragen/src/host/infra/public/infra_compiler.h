@@ -153,7 +153,7 @@ static inline int atomic16_cmpset(uint16_t volatile *ptr, const uint16_t exp,
 }
 static inline uint32_t atomic16_xchg(uint16_t volatile *ptr,
                                      const uint16_t val) {
-  return __atomic_exchange_2(ptr, val, __ATOMIC_SEQ_CST);
+  return __atomic_exchange_n(ptr, val, __ATOMIC_SEQ_CST);
 }
 static inline int32_t atomic16_read(int16_t volatile *ptr) { return *ptr; }
 static inline void atomic16_write(int16_t volatile *ptr, const int16_t val) {
@@ -191,7 +191,7 @@ static inline int atomic32_cmpset(uint32_t volatile *ptr, const uint32_t exp,
 }
 static inline uint32_t atomic32_xchg(uint32_t volatile *ptr,
                                      const uint32_t val) {
-  return __atomic_exchange_4(ptr, val, __ATOMIC_SEQ_CST);
+  return __atomic_exchange_n(ptr, val, __ATOMIC_SEQ_CST);
 }
 static inline int32_t atomic32_read(int32_t volatile *ptr) { return *ptr; }
 static inline void atomic32_write(int32_t volatile *ptr, const int32_t val) {
@@ -229,7 +229,7 @@ static inline int atomic64_cmpset(uint64_t volatile *ptr, const uint64_t exp,
 }
 static inline uint64_t atomic64_xchg(uint64_t volatile *ptr,
                                      const uint64_t val) {
-  return __atomic_exchange_8(ptr, val, __ATOMIC_SEQ_CST);
+  return __atomic_exchange_n(ptr, val, __ATOMIC_SEQ_CST);
 }
 static inline int64_t atomic64_read(int64_t volatile *ptr) { return *ptr; }
 static inline void atomic64_write(int64_t volatile *ptr, const int64_t val) {

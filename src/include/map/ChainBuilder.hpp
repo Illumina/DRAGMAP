@@ -77,7 +77,7 @@ private:
   size_t                 seedChainCount_;
   double                 chainFilterRatio_    = 2.0;
   double                 chainFilterConstant_ = 0.0;
-  int                    numRandomSampleHits_ = 0;
+  // int                    numRandomSampleHits_ = 0;
 };
 
 }  // namespace map
