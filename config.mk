@@ -148,7 +148,7 @@ endif
 VERSION_STRING?=$(shell git describe --tags --always --abbrev=8 2> /dev/null || echo "UNKNOWN")
 
 CXXWARNINGS=-Werror -Wno-unused-variable -Wno-free-nonheap-object -Wno-parentheses
-CWARNINGS?=-Werror -Wno-unused-variable -Wno-unused-function -Wno-format-truncation
+CWARNINGS?=-Werror -Wno-unused-variable -Wno-unused-function -Wno-format-truncation -Wno-unknown-warning-option -Wno-unused-but-set-variable
 CXXSTD?=-std=c++17
 
 

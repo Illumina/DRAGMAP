@@ -141,7 +141,7 @@ bool AlignmentGenerator::generateAlignment(
       1,
       (seedChain.isReverseComplement() ? (read.getLength() - seedChain.lastReadBase() - 1)
                                        : seedChain.firstReadBase()));  //10;//1;
-  static constexpr size_t forcedHorizontalMotion = smithWaterman_.width;
+  static const size_t forcedHorizontalMotion = smithWaterman_.width;
   // initialize the query from the base and the orientation of the seedChain
   const auto& query = read.getBases();
   int         move  = 0;
