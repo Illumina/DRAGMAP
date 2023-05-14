@@ -45,7 +45,14 @@ align::InsertSizeParameters DualFastq2SamWorkflow::requestInsertSizeInfo(
 
   align::InsertSizeParameters ret;
   bool                        retDone = false;
-  while (r1Tokenizer.next() && r2Tokenizer.next()) {
+  while (true) {
+    // Always call next() on both tokenizers, to make sure both files are read to the end.
+    const bool r1Next = r1Tokenizer.next();
+    const bool r2Next = r2Tokenizer.next();
+    if (!r1Next || !r2Next) {
+      break;
+    }
+
     const auto& r1Token = r1Tokenizer.token();
     const auto& r2Token = r2Tokenizer.token();
     //    std::cout << "token: " << r1Token << "-" << r2Token << "\n";
@@ -89,7 +96,14 @@ void DualFastq2SamWorkflow::alignDualFastq(
   align::Aligner::ReadPair   pair;
 
   int64_t fragmentId = 0;
-  while (r1Tokenizer.next() && r2Tokenizer.next()) {
+  while (true) {
+    // Always call next() on both tokenizers, to make sure both files are read to the end.
+    const bool r1Next = r1Tokenizer.next();
+    const bool r2Next = r2Tokenizer.next();
+    if (!r1Next || !r2Next) {
+      break;
+    }
+
     const auto& r1Token = r1Tokenizer.token();
     const auto& r2Token = r2Tokenizer.token();
     //    std::cout << "token: " << r1Token << "-" << r2Token << "\n";
