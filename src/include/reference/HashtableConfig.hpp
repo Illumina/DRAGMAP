@@ -220,8 +220,8 @@ public:
   uint64_t getHashtableBytes() const { return header_.hashtableBytes; }  // #bytes in references hash table
   uint64_t getHashtableRecordCount() const { return getHashtableBytes() / 8; }
   uint64_t getHashtableBucketCount() const { return getHashtableBytes() / 64; }
-  uint32_t getExtendTableRecordCount() const { return header_.extTabRecs; }
-  uint32_t getExtendTableBytes() const { return getExtendTableRecordCount() * 8; }
+  uint64_t getExtendTableRecordCount() const { return header_.extTabRecs; }
+  uint64_t getExtendTableBytes() const { return getExtendTableRecordCount() * 8; }
   uint32_t getMinimunFrequencyToExtend() const { return header_.minFreqToExtend; }
   uint32_t getMaxSeedFrequency() const { return header_.maxSeedFreq; }
   /// total number of bases in the reference sequence file - including padding
