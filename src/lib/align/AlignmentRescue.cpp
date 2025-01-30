@@ -12,7 +12,9 @@
  **
  **/
 
+#ifdef __SSE2__
 #include <emmintrin.h>
+#endif
 #include <boost/assert.hpp>
 #include <iomanip>
 

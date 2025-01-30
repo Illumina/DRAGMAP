@@ -539,7 +539,7 @@ typedef struct {
   int*               abort;
 } buildThreadCtx_t;
 
-#if defined(LOCAL_BUILD) && !defined(_TARGET_PPC_)
+#if defined(LOCAL_BUILD) && defined(_TARGET_X86)
 static inline uint64_t RDTSC()
 {
   uint32_t hi, lo;

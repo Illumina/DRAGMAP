@@ -12,7 +12,13 @@
  **
  **/
 
+#ifdef __SSE2__
 #include <emmintrin.h>
+#endif
+#ifdef __ARM_NEON
+#include "sse2neon.h"
+#endif
+
 
 #include <cassert>
 #include <sstream>

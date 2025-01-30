@@ -30,7 +30,13 @@
 
 // shared and sse2-specific implementations
 
+#ifdef __SSE2__
 #include <emmintrin.h>
+#endif
+#ifdef __ARM_NEON
+#include "sse2neon.h"
+#endif
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>

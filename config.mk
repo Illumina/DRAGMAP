@@ -16,6 +16,7 @@ OS?=$(or \
 ifndef OS
 $(error Unsupported Operating System: $(UNAME_STRING))
 endif
+ARCH_STRING:=$(shell uname -p)
 
 ############################################################
 ##
@@ -166,6 +167,7 @@ CPPFLAGS += -I $(BOOST_INCLUDEDIR)
 endif
 #CPPFLAGS += -I $(BAMTOOLS_INCLUDEDIR)
 CPPFLAGS += -I $(DRAGEN_THIRDPARTY)
+CPPFLAGS += -I $(DRAGEN_THIRDPARTY)/sswlib/ssw
 CPPFLAGS += -I $(DRAGEN_OS_SRC_DIR)/include
 CPPFLAGS += -I $(DRAGEN_SRC_DIR) -I $(DRAGEN_SRC_DIR)/common/public -I $(DRAGEN_SRC_DIR)/host/dragen_api/sampling
 CPPFLAGS += -I $(DRAGEN_SRC_DIR)/host/infra/public -I $(DRAGEN_SRC_DIR)/host/metrics/public
@@ -179,7 +181,14 @@ LDFLAGS += -L $(BOOST_LIBRARYDIR)
 endif
 LDFLAGS += $(BOOST_LIBRARIES:%=-lboost_%)
 
-CPPFLAGS += -msse4.2 -mavx2 
+ifeq (x86_64,$(ARCH_STRING))
+CPPFLAGS += -D_TARGET_X86_ -msse4.2 -mavx2
+endif
+
+ifeq (aarch64,$(ARCH_STRING))
+CPPFLAGS += -D_TARGET_ARM_ -march=armv8.2-a+simd -DSSE2NEON_SUPPRESS_WARNINGS
+endif
+
 ifdef DEBUG
 CPPFLAGS += -O0 -ggdb3 -femit-class-debug-always -fno-omit-frame-pointer
 ifeq ($(DEBUG),glibc)

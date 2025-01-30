@@ -28,7 +28,9 @@
  ** SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  **/
 
+#ifdef __AVX2__
 #include <immintrin.h>
+#endif
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>

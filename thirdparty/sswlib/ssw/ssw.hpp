@@ -34,7 +34,9 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#ifdef __AVX2__
 #include <immintrin.h>
+#endif
 
 
 #define MAPSTR "MIDNSHP=X"

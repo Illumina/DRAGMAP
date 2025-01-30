@@ -6,7 +6,6 @@
 
 #include <string>
 
-#define _TARGET_X86_
 #if defined(_TARGET_X86_)
 #include <mmintrin.h>
 #include <xmmintrin.h>
@@ -18,7 +17,7 @@
 #undef bool
 #undef vector*/
 #elif defined(_TARGET_ARM_)
-#include "SSE2NEON.h"
+#include "sse2neon.h"
 #else
 #error Target not recognized, porting needed
 #endif

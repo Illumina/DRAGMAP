@@ -32,7 +32,12 @@
 
 #pragma once
 
+#ifdef __AVX2__
 #include <immintrin.h>
+#endif
+#ifdef __ARM_NEON
+#include "sse2neon.h"
+#endif
 
 #ifdef __GNUC__
 #define LIKELY(x) __builtin_expect((x),1)
@@ -72,6 +77,7 @@ struct _profile_sse2{
   uint8_t bias;
 };
 
+#ifdef __AVX2__
 struct _profile_avx2{
   __m256i* profile_byte;  // 0: none
   __m256i* profile_word;  // 0: none
@@ -81,5 +87,6 @@ struct _profile_avx2{
   int32_t n;
   uint8_t bias;
 };
+#endif
 
 

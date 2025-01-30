@@ -15,7 +15,12 @@
 #ifndef ALIGN_ALIGNMENT_RESCUE_HPP
 #define ALIGN_ALIGNMENT_RESCUE_HPP
 
+#ifdef __SSE2__
 #include <emmintrin.h>
+#endif
+#ifdef __ARM_NEON
+#include "sse2neon.h"
+#endif
 #include <array>
 #include <deque>
 #include "align/Alignment.hpp"
