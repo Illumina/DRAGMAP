@@ -22,6 +22,7 @@
 //#include "common/Crc32Hw.hpp"
 #include "common/DragenLogger.hpp"
 #include "map/Mapper.hpp"
+#include <boost/range/iterator_range.hpp>
 
 namespace dragenos {
 namespace map {
